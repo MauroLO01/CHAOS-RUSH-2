@@ -64,7 +64,6 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     });
   }
 
-  // ✔️ Nome correto: setTarget()
   setTarget(target) {
     this.target = target;
   }
