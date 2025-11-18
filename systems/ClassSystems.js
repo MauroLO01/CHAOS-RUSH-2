@@ -1,4 +1,3 @@
-// ClassSystem.js
 export default class ClassSystem {
     constructor(scene) {
         this.scene = scene;

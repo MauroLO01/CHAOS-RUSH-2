@@ -1,5 +1,3 @@
-// 📦 WeaponSystem.js — versão corrigida e com debug
-
 const FRASCO_CONFIG = {
     VELOCITY: 400,
     LIFESPAN: 400,

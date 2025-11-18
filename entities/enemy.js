@@ -28,7 +28,6 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
   update() {
     if (!this.active || this.isDead) return;
 
-    // ✔️ Sempre tenta seguir SEU ALVO atual
     const target = this.target ?? this.scene.player;
     if (!target || !target.active) return;
 
