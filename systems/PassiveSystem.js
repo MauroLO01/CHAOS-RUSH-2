@@ -1,21 +1,24 @@
 export default class PassiveSystem {
-    constructor(scene) {
+    constructor(scene, player) {
         this.scene = scene;
+        this.player = player;
+
+        // Cooldowns
+        this.fireCD = 2000;
+        this.poisonCD = 2500;
+        this.slowCD = 3000;
+
+        this.fireReady = true;
+        this.poisonReady = true;
+        this.slowReady = true;
     }
 
-    /**
-     * Decide qual passiva ativar com base na classe
-     */
-    activateClassAbilities(className) {
-        if (!className) {
-            console.warn("⚠️ Nenhum nome de classe recebido no PassiveSystem.");
-            return;
-        }
 
-        const normalized = className
-            .toLowerCase()
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
+    activateClassAbilities(className) {
+        if (!className) return console.warn("Classe não reconhecida.");
+
+        const normalized = className.toLowerCase()
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
             .replace(/[^a-z]/g, "");
 
         const map = {
@@ -26,92 +29,76 @@ export default class PassiveSystem {
 
         for (const key in map) {
             if (normalized.includes(key)) {
-                console.log(`✨ Passiva reconhecida: ${normalized}`);
                 map[key]();
                 return;
             }
         }
-
-        console.warn("⚠️ Nenhuma passiva encontrada para:", normalized);
     }
 
-    updatePassiveBar(player) {
-        const scene = this.scene;
-        if (!scene.passiveBar || !scene.passiveText) return;
+    castFireBottle() {
+        if (!this.fireReady) return;
 
-        const percent = Math.min(player.kills / player.nextAscencionAt, 1);
+        this.fireReady = false;
+        this.scene.time.delayedCall(this.fireCD, () => this.fireReady = true);
 
-        scene.passiveBar.width = 200 * percent;
-        scene.passiveText.setText(`Passiva: ${Math.floor(percent * 100)}%`);
+        this.throwBottle("fire");
+    }
 
-        if (percent >= 1) {
-            scene.passiveText.setText("☠️ PASSIVA PRONTA!");
-            scene.passiveText.setColor('#bb55ff');
+    castPoisonBottle() {
+        if (!this.poisonReady) return;
 
-            scene.tweens.add({
-                targets: scene.passiveBar,
-                alpha: { from: 1, to: 0.5 },
-                duration: 300,
-                yoyo: true,
-                repeat: -1
-            });
+        this.poisonReady = false;
+        this.scene.time.delayedCall(this.poisonCD, () => this.poisonReady = true);
+
+        this.throwBottle("poison");
+    }
+
+    castSlowBottle() {
+        if (!this.slowReady) return;
+
+        this.slowReady = false;
+        this.scene.time.delayedCall(this.slowCD, () => this.slowReady = true);
+
+        this.throwBottle("slow");
+    }
+
+    throwBottle(type) {
+        if (!this.player) return console.warn("Player não definido no PassiveSystem.");
+
+        const bottle = this.scene.physics.add.sprite(this.player.x, this.player.y, "bottle");
+
+        this.scene.physics.moveToObject(bottle, this.scene.input.activePointer, 300);
+
+        bottle.setData("type", type);
+        bottle.setData("damage", this.getBottleDamage(type));
+        bottle.setData("area", this.getBottleArea(type));
+    }
+
+
+    getBottleDamage(type) {
+        switch (type) {
+            case "fire": return 40;
+            case "poison": return 20;
+            case "slow": return 5;
         }
     }
 
-    activateAlquimista() {
-        const scene = this.scene;
-        const player = scene.player;
-        if (!player || !scene.weaponSystem) return;
+    getBottleArea(type) {
+        switch (type) {
+            case "fire": return 40;
+            case "poison": return 70;
+            case "slow": return 125;
+        }
+    }
 
-        player.killCount = 0;
-        player.maxKillsForPassive = 40;
-        player.passiveReady = false;
+    activatePassiva() {
+        this.fireReady = true;
+        this.poisonReady = true;
+        this.slowReady = true;
 
-        const update = () => {
-            const percent = Math.min(player.killCount / player.maxKillsForPassive, 1);
-            scene.passiveBar.width = 200 * percent;
-            scene.passiveText.setText(`Passiva: ${Math.floor(percent * 100)}%`);
-
-            if (percent >= 1 && !player.passiveReady) {
-                player.passiveReady = true;
-
-                scene.tweens.add({
-                    targets: scene.passiveBar,
-                    alpha: { from: 1, to: 0.5 },
-                    duration: 400,
-                    yoyo: true,
-                    repeat: -1,
-                });
-
-                scene.passiveText.setText("☠️ PASSIVA PRONTA!");
-                scene.passiveText.setColor("#00ffaa");
-            }
-        };
-
-        scene.events.on("enemyKilled", () => {
-            if (!player.passiveReady) {
-                player.killCount++;
-                update();
-            }
-        });
-
-        scene.input.keyboard.on("keydown-SPACE", () => {
-            if (!player.passiveReady) return;
-
-            scene.weaponSystem.resetAllCooldowns();
-            for (let i = 0; i < 3; i++) {
-                scene.time.delayedCall(i * 150, () => {
-                    scene.weaponSystem._useFrasco(true);
-                });
-            }
-
-            player.killCount = 0;
-            player.passiveReady = false;
-            scene.passiveBar.alpha = 1;
-            update();
-        });
-
-        update();
+        this.castFireBottle();
+        this.castPoisonBottle();
+        this.castSlowBottle();
     }
 
     activateCoveiro() {
@@ -119,308 +106,224 @@ export default class PassiveSystem {
         const player = scene.player;
         if (!player) return;
 
-        console.log("☠️ Passiva do Coveiro Ativada!");
+        console.log("☠️ Passiva do Coveiro ativada!");
 
-        // inicializa valores de controle
-        player.kills = player.kills || 0;
-        player.ascensionCount = player.ascensionCount || 0;
-        player.nextAscencionAt = player.nextAscencionAt || 30;
-        player.isInAscencion = player.isInAscencion || false;
+        // Inicialização segura
+        player.kills = 0;
+        player.ascensionCount = 0;
+        player.isInAscencion = false;
 
-        // evento que incrementa a barra ao abater inimigo
+        player.nextAscencionAt = 30; // primeira ascensão
+
         scene.events.on("enemyKilled", () => {
+            console.log("🎯 PassiveSystem recebeu enemyKilled");
+            console.log(`evento recebido "enemykilled`)
             if (player.isInAscencion) return;
-            player.kills = (player.kills || 0) + 1;
-            this.updatePassiveBar(player);
-            // não dispara ascensão automaticamente — apenas preenche a barra
+
+            player.kills++;
+            this.updateAscensionBar(player);
         });
 
-        // ative com SPACE — o jogador escolhe quando detonar
+        // espaço para ativar ascensão
         scene.input.keyboard.on("keydown-SPACE", () => {
-            if (!player || player.isInAscencion) return;
-            if ((player.kills || 0) < (player.nextAscencionAt || 99999)) return;
-
-            // ativa ascensão manualmente
-            this.activateAscensaoCarcaca(player);
+            if (player.kills < player.nextAscencionAt) return;
+            if (player.isInAscencion) return;
+            this.activateAscension(player);
         });
 
-        // atualiza visual inicial
-        this.updatePassiveBar(player);
+        this.updateAscensionBar(player);
     }
 
-    // ativa ascensão: recebe player (evita usar this.player)
-    activateAscensaoCarcaca(player) {
+    updateAscensionBar(player) {
         const scene = this.scene;
-        if (!player) return;
-        if (player.isInAscencion) return;
+
+        const percent = Math.min(player.kills / player.nextAscencionAt, 1);
+        scene.passiveBar.width = 200 * percent;
+        scene.passiveText.setText(`Ascensão: ${Math.floor(percent * 100)}%`);
+
+        if (percent >= 1) {
+            scene.passiveText.setText("☠️ ASCENSÃO PRONTA!");
+            scene.passiveText.setColor("#aa55ff");
+        }
+    }
+
+    //Logica de ascensão do coveiro
+
+    activateAscension(player) {
+        const scene = this.scene;
 
         player.isInAscencion = true;
-        player.ascensionCount = (player.ascensionCount || 0) + 1;
+        player.ascensionCount++;
 
-        console.log(`⚰️ ASCENSÃO #${player.ascensionCount} ATIVADA`);
+        const asc = player.ascensionCount;
+        const duration = 10000 + (asc * 2000); // +2s por ascensão
 
-        // --- AURA VISUAL + PARTICULAS ---
-        const auraRadius = 90;
-        const aura = scene.add.circle(player.x, player.y, auraRadius, 0x9933ff, 0.18)
-            .setStrokeStyle(3, 0xaa55ff)
-            .setDepth(1);
+        console.log(`⚰️ ASCENSÃO ${asc} INICIADA (Duração ${duration / 1000}s)`);
 
-        // emitter de partículas seguindo a aura (usa xp_orb como fallback)
-        const partTexture = scene.textures.exists("smoke") ? "smoke" : "xp_orb";
-        const auraParticles = scene.add.particles(partTexture).createEmitter({
-            x: player.x,
-            y: player.y,
-            lifespan: { min: 400, max: 900 },
-            speed: { min: -20, max: 20 },
-            scale: { start: 0.4, end: 0 },
-            alpha: { start: 0.6, end: 0 },
-            frequency: 120,
-            tint: 0xaa55ff,
-            follow: aura
+        //buff por ascensão
+        // Ascensões cíclicas (1 → 2 → 3 → repete)
+        const phase = ((asc - 1) % 3) + 1;
+
+        // Buff base de todas
+        player.tempSpeed = 40 + asc * 4;
+        player.tempMaxHp = 40 + asc * 6;
+        player.hp += player.tempMaxHp;
+
+        if (phase >= 2) {
+            player.foicePoisonMultiplier = 1.5;
+        }
+
+        if (phase === 3) {
+            this.spawnZombieTank(player, asc);
+        }
+
+        //AURA VISUAL 
+        const aura = scene.add.circle(player.x, player.y, 95, 0x8844ff, 0.2)
+            .setStrokeStyle(3, 0xbb88ff)
+            .setDepth(2);
+
+        const auraUpdate = scene.events.on("update", () => {
+            aura.setPosition(player.x, player.y);
         });
 
-        // Atualiza posição (para segurança se follow falhar)
-        const auraUpdFn = () => {
-            if (aura && aura.active) aura.setPosition(player.x, player.y);
-        };
-        scene.events.on("update", auraUpdFn);
-
-        // spawn do zumbi (tier depende do ascensionCount)
-        this.spawnAscencionZombie(player, scene);
-
-        // duração da ascensão
-        scene.time.delayedCall(20000, () => {
+        //término
+        scene.time.delayedCall(duration, () => {
             player.isInAscencion = false;
             player.kills = 0;
-            player.nextAscencionAt = (player.nextAscencionAt || 30) + 30;
+            player.nextAscencionAt += 30;
 
-            // cleanup visual
-            if (aura) aura.destroy();
-            if (auraParticles) {
-                auraParticles.stop();
-                // remove emitter after fade
-                scene.time.delayedCall(800, () => auraParticles.manager?.destroy());
-            }
-            scene.events.off("update", auraUpdFn);
+            player.hp -= player.tempMaxHp;
 
-            // recomputa barra visual
-            this.updatePassiveBar(player);
+            player.foicePoisonMultiplier = 1;
 
+            aura.destroy();
+            scene.events.off("update", auraUpdate);
+
+            this.updateAscensionBar(player);
             console.log("☠️ Ascensão terminou.");
         });
     }
 
-    // tiers: 1,2,3
-    getZombieTier(ascCount) {
-        if (ascCount >= 13) return 3;
-        if (ascCount >= 7) return 2;
-        return 1;
-    }
 
-    // spawnAscencionZombie: agora recebe player e scene explictamente
-    spawnAscencionZombie(player, scene) {
-        scene = scene || this.scene;
-        player = player || scene.player;
-        if (!scene || !player) return;
+    //ZUMBI TANK EVOLUTIVO 
+    spawnZombieTank(player, asc) {
+        const scene = this.scene;
 
-        const offset = 60;
-        const spawnX = player.x + Phaser.Math.Between(-offset, offset);
-        const spawnY = player.y + Phaser.Math.Between(-offset, offset);
+        const tier = asc >= 13 ? 3 : asc >= 7 ? 2 : 1;
 
-        const tier = this.getZombieTier(player.ascensionCount || 0);
+        const spawnX = player.x + Phaser.Math.Between(-70, 70);
+        const spawnY = player.y + Phaser.Math.Between(-70, 70);
 
-        // cria sprite ou fallback circle se textura não existe
-        let zombie;
-        if (scene.textures.exists("zombie")) {
-            zombie = scene.physics.add.sprite(spawnX, spawnY, "zombie").setDepth(3).setScale(1.25);
-        } else {
-            zombie = scene.add.circle(spawnX, spawnY, 14, 0x3bff3b).setDepth(3);
-            scene.physics.add.existing(zombie);
-        }
+        console.log(`🧟‍♂️ Zumbi Tank Tier ${tier} criado!`);
 
-        // garante corpo fisico
-        if (zombie.body) {
-            zombie.body.setCollideWorldBounds(true);
-            zombie.body.setImmovable(false);
-            zombie.body.setAllowGravity(false);
-        }
+        const tex = scene.textures.exists("zombie") ? "zombie" : null;
 
+        const zombie = tex
+            ? scene.physics.add.sprite(spawnX, spawnY, "zombie")
+                .setScale(1.4 + tier * 0.2)
+            : scene.add.circle(spawnX, spawnY, 18, 0x44ff44);
+
+        scene.physics.add.existing(zombie);
+
+        zombie.setDepth(3);
         zombie.setAlpha(0);
+
         scene.tweens.add({ targets: zombie, alpha: 1, duration: 300 });
 
-        // stats por tier
-        if (tier === 1) {
-            zombie.maxHp = 150;
-            zombie.explosionDamage = 120;
-            zombie.speed = 45;
-        } else if (tier === 2) {
-            zombie.maxHp = 300;
-            zombie.explosionDamage = 220;
-            zombie.speed = 55;
-        } else {
-            zombie.maxHp = 200;
-            zombie.explosionDamage = 320;
-            zombie.speed = 60;
-            zombie.lifeSteal = 0.25;
-        }
+        //stats
+        zombie.maxHp = tier === 1 ? 220 : tier === 2 ? 450 : 320;
         zombie.hp = zombie.maxHp;
-        zombie.tauntRadius = 240;
-        zombie.isShieldZombie = true;
 
-        // PARTICULAS (depende do tier)
-        const pTex = scene.textures.exists("dark") ? "dark" : "xp_orb";
-        const colors = tier === 1 ? 0x66ff66 : tier === 2 ? 0x44ff88 : 0xaa55ff;
-        const particleEmitter = scene.add.particles(pTex).createEmitter({
-            x: zombie.x,
-            y: zombie.y,
-            lifespan: { min: 500, max: 900 },
-            speed: { min: -30, max: 30 },
-            scale: { start: 0.45, end: 0 },
-            alpha: { start: 0.6, end: 0 },
-            frequency: 120,
-            tint: colors,
-            follow: zombie
-        });
+        zombie.speed = 50 + tier * 10;
+        zombie.tauntRadius = 260 + tier * 30;
+        zombie.corrosionDamage = 120 + tier * 100;
+        zombie.corrosionRadius = 120 + tier * 40;
+        zombie.lifeSteal = tier === 3 ? 0.25 : 0;
 
-        // taunt loop: força inimigos próximos a mirar no zumbi
-        const tauntEvent = scene.time.addEvent({
-            delay: 300,
+        //taunt
+        zombie.tauntEvent = scene.time.addEvent({
+            delay: 250,
             loop: true,
             callback: () => {
-                scene.enemies.children.each(enemy => {
-                    if (!enemy || !enemy.active) return;
-                    const d = Phaser.Math.Distance.Between(zombie.x, zombie.y, enemy.x, enemy.y);
-                    if (d <= zombie.tauntRadius) {
-                        if (typeof enemy.setTarget === "function") enemy.setTarget(zombie);
-                        else enemy.target = zombie;
-                    }
+                scene.enemies.children.each(e => {
+                    if (!e.active) return;
+                    const d = Phaser.Math.Distance.Between(zombie.x, zombie.y, e.x, e.y);
+                    if (d <= zombie.tauntRadius) e.target = zombie;
                 });
             }
         });
 
-        // movimento autônomo simples: anda em direção ao player frontalmente, ou persegue o inimigo mais próximo
-        const moveEvent = scene.time.addEvent({
-            delay: 300,
+        //movimentção
+        zombie.moveEvent = scene.time.addEvent({
+            delay: 400,
             loop: true,
             callback: () => {
-                if (!zombie || !zombie.body) return;
-                // procura inimigo mais próximo (para cronometrar onde o tank fica)
                 let nearest = null;
-                let minDist = Infinity;
-                scene.enemies.children.each(enemy => {
-                    if (!enemy || !enemy.active) return;
-                    const dist = Phaser.Math.Distance.Between(zombie.x, zombie.y, enemy.x, enemy.y);
-                    if (dist < minDist) {
-                        minDist = dist;
-                        nearest = enemy;
+                let dist = 99999;
+
+                scene.enemies.children.each(e => {
+                    const d = Phaser.Math.Distance.Between(zombie.x, zombie.y, e.x, e.y);
+                    if (d < dist) {
+                        nearest = e;
+                        dist = d;
                     }
                 });
+
                 if (nearest) scene.physics.moveToObject(zombie, nearest, zombie.speed);
-                else scene.physics.moveToObject(zombie, player, zombie.speed);
+                else scene.physics.moveToObject(zombie, player, zombie.speed * 0.6);
             }
         });
 
-        // vida e dano do zumbi: implementa takeDamage e onDeath localmente
-        zombie.takeDamage = (dmg, source) => {
+        //MORTE
+        zombie.takeDamage = dmg => {
             zombie.hp -= dmg;
-            // lifesteal do zumbi para o player (se tier 3)
-            if (zombie.lifeSteal && source === "zombieAttack" && this.scene.player) {
-                // opcional: curar o player por uma % do dano
-                const heal = Math.floor(dmg * (zombie.lifeSteal || 0));
-                this.scene.player.heal?.(heal);
-            }
-            if (zombie.hp <= 0) {
-                zombie.onDeath?.();
-            }
+
+            if (zombie.hp <= 0) zombie.onDeath();
         };
 
         zombie.onDeath = () => {
-            // pequena explosão visual e dano em área (corrosão)
-            const explosion = scene.add.circle(zombie.x, zombie.y, 110, 0x55ff66, 0.36).setDepth(4).setStrokeStyle(3, 0x00ff88);
-            scene.tweens.add({ targets: explosion, alpha: 0, scale: 1.25, duration: 600, onComplete: () => explosion.destroy() });
+            zombie.tauntEvent.remove();
+            zombie.moveEvent.remove();
 
-            // aplica dano forte por tick na área semelhante ao frasco corrosivo
-            const aoeRadius = 110;
-            const aoeTicks = 8;
-            let tickCount = 0;
-            const aoeEvent = scene.time.addEvent({
+            const ex = scene.add.circle(zombie.x, zombie.y, zombie.corrosionRadius, 0x55ff55, 0.35)
+                .setDepth(5).setStrokeStyle(4, 0x99ff99);
+
+            scene.tweens.add({ targets: ex, alpha: 0, duration: 3000 });
+
+            let ticks = 0;
+            const tickEvent = scene.time.addEvent({
                 delay: 300,
                 loop: true,
                 callback: () => {
-                    tickCount++;
                     scene.enemies.children.each(e => {
-                        if (!e || !e.active) return;
-                        const dist = Phaser.Math.Distance.Between(zombie.x, zombie.y, e.x, e.y);
-                        if (dist <= aoeRadius) {
-                            e.takeDamage(zombie.explosionDamage);
+                        if (!e.active) return;
+
+                        const d = Phaser.Math.Distance.Between(ex.x, ex.y, e.x, e.y);
+                        if (d <= zombie.corrosionRadius) {
+                            e.takeDamage(zombie.corrosionDamage);
                         }
                     });
-                    if (tickCount >= aoeTicks) aoeEvent.remove(false);
+
+                    ticks++;
+                    if (ticks >= 10) tickEvent.remove();
                 }
             });
 
-            // cleanup
-            if (tauntEvent) tauntEvent.remove(false);
-            if (moveEvent) moveEvent.remove(false);
-            if (particleEmitter) {
-                particleEmitter.stop();
-                scene.time.delayedCall(600, () => {
-                    particleEmitter.manager?.destroy();
-                });
-            }
-            if (zombie && zombie.destroy) zombie.destroy();
+            zombie.destroy();
         };
 
-        // garante tempo máximo de duração do zumbi (caso não morra)
-        scene.time.delayedCall(7000, () => {
-            if (zombie && zombie.onDeath) zombie.onDeath();
-        });
-
-        // retorna o objeto para possíveis usos externos
-        return zombie;
-    }
-
-    // função para explosão/aoe manual (se quiser usar separadamente)
-    explodeTankZombie(scene, zombie) {
-        if (!scene || !zombie) return;
-        // reusa a lógica de onDeath do próprio zombie se existir
-        if (zombie.onDeath) {
-            zombie.onDeath();
-            return;
-        }
-
-        // fallback: cria efeito visual e aplica dano
-        const fx = scene.add.circle(zombie.x, zombie.y, 40, 0x55ff55, 0.4).setDepth(40);
-        scene.tweens.add({ targets: fx, radius: 180, alpha: 0, duration: 500, onComplete: () => fx.destroy() });
-
-        const corrosion = scene.add.circle(zombie.x, zombie.y, 120, 0x44dd44, 0.25).setDepth(10);
-        scene.time.delayedCall(3000, () => corrosion.destroy());
-
-        scene.enemies.children.each(enemy => {
-            if (!enemy || !enemy.active) return;
-            const d = Phaser.Math.Distance.Between(corrosion.x, corrosion.y, enemy.x, enemy.y);
-            if (d <= 120) enemy.takeDamage(35);
+        // Duração máxima do zumbi
+        scene.time.delayedCall(8000 + tier * 2000, () => {
+            if (zombie.active) zombie.onDeath();
         });
     }
 
+    // Alquimista (inalterado)
+    activateAlquimista() {
+        console.log("PASSIVA ALC");
+    }
 
-
-    /* PASSIVA DA SENTINELA*/
     activateSentinela() {
-        console.log("🔔 Passiva ativada: +knockback");
-
-        const p = this.scene.player;
-        if (!p) return;
-
-        p.knockbackBonus = 1.3;
-        p.pushDamageBonus = 1;
-
-        const safeCircle = this.scene.add.circle(p.x, p.y, 80, 0x88ccff, 0.1);
-        safeCircle.setDepth(1);
-
-        this.scene.events.on("update", () => {
-            safeCircle.x = p.x;
-            safeCircle.y = p.y;
-        });
+        console.log("PASSIVA SENT");
     }
 }

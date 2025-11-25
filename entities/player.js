@@ -1,3 +1,4 @@
+// entities/player.js
 export default class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, selectedClass = null) {
     super(scene, x, y, "player");
@@ -8,18 +9,17 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.maxHP = 100;
     this.currentHP = this.maxHP;
     this.baseDamage = 5;
-    this.damageInterval = 200;
-    this.auraRange = 110;
+    this.damageInterval = 200; // usado pela MainScene para processAuraDamage
+    this.auraRange = 110; // raio em pixels
     this.magnetRadius = 120;
 
-    //propriedade para debuffs 
+    // Debuffs / multiplicadores
     this.debuffDurationMultiplier = 1;
     this.dotDamageBonus = 1;
-
     this.slowRaidusBonus = 0;
 
-    // Sistema de progressão
-    this.level = 0;
+    // Progressão
+    this.level = 1;
     this.xp = 0;
     this.xpToNext = 10;
 
@@ -31,59 +31,115 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.setSize(20, 20);
     this.setTint(0x00ff00);
 
-    // Aura visual + física
-    this.aura = scene.add.circle(this.x, this.y, this.auraRange, 0x00ffff, 0.15);
-    scene.physics.add.existing(this.aura);
+    // último hit (proteção contra hits rápidos)
+    this.lastHitTime = 0;
 
-    if (this.aura.body) {
-      this.aura.body.setAllowGravity(false);
-      this.aura.body.setImmovable(true);
-      this.aura.body.setCircle(this.auraRange);
-      this.aura.body.isSensor = true;
+    // referência ao PassiveSystem será setada pela MainScene
+    this.passiveSystem = null;
+
+    // guarda a classe (nome). A aplicação de atributos é feita pela MainScene para evitar duplicação.
+    this.currentClass = null;
+    if (selectedClass) {
+      this.currentClass = typeof selectedClass === "string" ? selectedClass : (selectedClass.name || null);
     }
 
-    //  Se o jogador escolheu uma classe, aplica os bônus/debuffs dela
-    if (selectedClass) {
-      if (selectedClass.speedBonus) this.speed += selectedClass.speedBonus;
-      if (selectedClass.damageMultiplier)
-        this.baseDamage *= selectedClass.damageMultiplier;
-      if (selectedClass.maxHPBonus) {
-        this.maxHP += selectedClass.maxHPBonus;
-        this.currentHP = this.maxHP;
-      }
-      if (selectedClass.auraBonus) {
-        this.auraRange += selectedClass.auraBonus;
-        this.aura.setRadius(this.auraRange);
-        if (this.aura.body) this.aura.body.setCircle(this.auraRange);
+    // cria a aura física (hitbox). Implementação robusta:
+    this._createAura();
+
+    // se quiser logar/debug:
+    // console.log("Player criado", { x, y, selectedClass });
+  }
+
+  // injeta PassiveSystem (MainScene chama isso)
+  setPassiveSystem(passiveSystem) {
+    this.passiveSystem = passiveSystem;
+  }
+
+  // cria um sprite circular invisível que será usado como hitbox/aura
+  _createAura() {
+    // tentamos usar uma textura já existente com nome 'aura_player'
+    const texKey = "player_aura_temp";
+
+    // cria textura temporária se não existir
+    if (!this.scene.textures.exists(texKey)) {
+      const g = this.scene.make.graphics({ x: 0, y: 0, add: false });
+      g.fillStyle(0xffffff, 1);
+      // desenha um círculo pequeno (vamos escalar o sprite depois)
+      g.fillCircle(16, 16, 16);
+      g.generateTexture(texKey, 32, 32);
+      g.destroy();
+    }
+
+    // cria o sprite de aura (visualmente invisível, mas com corpo físico)
+    this.aura = this.scene.add.sprite(this.x, this.y, texKey);
+    this.aura.setVisible(false); // se quiser ver o hitbox para debug, setVisible(true)
+    this.aura.setDepth(1);
+
+    // adiciona física arcade ao aura
+    this.scene.physics.add.existing(this.aura);
+    if (this.aura.body) {
+      // define body como círculo com o raio desejado
+      const body = this.aura.body;
+      body.setAllowGravity(false);
+      body.setImmovable(true);
+
+      // body.setCircle existe na maioria das builds Arcade — se não existir, usamos setSize
+      if (typeof body.setCircle === "function") {
+        // setCircle espera raio em pixels e pode receber offset, ajustamos para o tamanho que geramos
+        const baseRadius = 16; // baseado no texture 32x32
+        const scale = (this.auraRange / baseRadius);
+        this.aura.setScale(scale);
+        // após escalar, recalculamos body circle
+        body.setCircle(baseRadius);
+        // body offset ajustado automaticamente pelo setCircle em builds padrão; se necessário, setOffset:
+        body.setOffset(0, 0);
+      } else {
+        // fallback: setSize com largura/altura (approx)
+        body.setSize(this.auraRange * 2, this.auraRange * 2);
       }
 
-      if (selectedClass.passive === 'ressacamagica') {
-        this.debuffDurationMultiplier = 1.25;
-      }
+      // marca sensor-like (não colidir fisicamente)
+      // Arcade Body não tem isSensor em todas as builds, então usamos colisões imováveis + overlap
+      body.checkCollision.none = false;
     }
   }
 
-
+  // atualiza posição, movimento e pop de aura
   update(cursors) {
     if (this.scene.playerCanMove === false) return;
-    this.body.setVelocity(0);
 
-    if (cursors.W.isDown) this.body.setVelocityY(-this.speed);
-    if (cursors.S.isDown) this.body.setVelocityY(this.speed);
-    if (cursors.A.isDown) this.body.setVelocityX(-this.speed);
-    if (cursors.D.isDown) this.body.setVelocityX(this.speed);
+    // corpo pode ser undefined em alguns edge-cases, checamos
+    if (!this.body) return;
 
-    this.body.velocity.normalize().scale(this.speed);
+    // movement
+    const vx = (cursors && cursors.D && cursors.D.isDown ? 1 : 0) + (cursors && cursors.A && cursors.A.isDown ? -1 : 0);
+    const vy = (cursors && cursors.S && cursors.S.isDown ? 1 : 0) + (cursors && cursors.W && cursors.W.isDown ? -1 : 0);
 
+    const v = new Phaser.Math.Vector2(vx, vy);
+    if (v.lengthSq() > 0) {
+      v.normalize().scale(this.speed);
+      this.body.setVelocity(v.x, v.y);
+    } else {
+      this.body.setVelocity(0, 0);
+    }
+
+    // sincroniza aura com o player
     if (this.aura) {
       this.aura.x = this.x;
       this.aura.y = this.y;
+      // também sincroniza o body caso necessário
+      if (this.aura.body) {
+        this.aura.body.x = this.x - (this.aura.displayWidth / 2);
+        this.aura.body.y = this.y - (this.aura.displayHeight / 2);
+      }
     }
   }
 
+  // XP e level
   gainXP(amount) {
     this.xp += amount;
-    if (this.level === 0) this.xpToNext = 10;
+    if (this.level === 0) this.level = 1;
+    if (!this.xpToNext || this.xpToNext <= 0) this.xpToNext = 10;
     if (this.scene && this.scene.updateXpBar) this.scene.updateXpBar();
     if (this.xp >= this.xpToNext) this.levelUp();
   }
@@ -93,7 +149,6 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.xp -= this.xpToNext;
     this.xpToNext = Math.floor(this.xpToNext * 1.5);
     if (this.scene && this.scene.updateXpBar) this.scene.updateXpBar();
-    // chame o upgrade system com pequeno delay para evitar conflito de tweens
     this.scene.time.delayedCall(
       200,
       () => {
@@ -105,8 +160,12 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   takeDamage(amount) {
+    // proteção
+    if (typeof amount !== "number") return;
     this.currentHP -= amount;
-    this.scene.cameras.main.shake(100, 0.005);
+    if (this.scene && this.scene.cameras && this.scene.cameras.main) {
+      this.scene.cameras.main.shake(100, 0.005);
+    }
     if (this.currentHP <= 0) {
       this.currentHP = 0;
       this.die();
@@ -115,6 +174,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   heal(amount) {
+    if (typeof amount !== "number") return;
     this.currentHP = Math.min(this.maxHP, this.currentHP + amount);
     if (this.scene && this.scene.updateHealthBar) this.scene.updateHealthBar();
   }
@@ -131,5 +191,14 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       )
       .setOrigin(0.5);
     this.scene.time.delayedCall(3000, () => this.scene.scene.restart());
+  }
+
+  // seleciona classe em runtime (aceita string ou objeto com .name)
+  selectClass(classObj) {
+    const name = typeof classObj === "string" ? classObj : (classObj && classObj.name) || null;
+    this.currentClass = name;
+    if (this.passiveSystem && typeof this.passiveSystem.setClass === "function") {
+      this.passiveSystem.setClass(name);
+    }
   }
 }
