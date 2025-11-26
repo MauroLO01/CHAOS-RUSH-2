@@ -9,19 +9,15 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.xpValue = 10;
     this.isDead = false;
 
-    // Adiciona à cena
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
-    // Configurações físicas
     this.setCollideWorldBounds(false);
     this.setSize(18, 18);
     this.setOffset(1, 1);
 
-    // Cor inicial
     this.setTint(0xff3333);
 
-    // Target padrão é o player
     this.target = scene.player;
   }
 
@@ -71,13 +67,10 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (this.isDead) return;
     this.isDead = true;
 
-    // Evento para MainScene criar XP Orb
     this.emit("die", this.x, this.y, this.xpValue);
 
-    // Evento global — outras classes escutam isto
     this.scene.events.emit("enemyKilled", this);
 
-    // Animação de morte
     this.scene.tweens.add({
       targets: this,
       alpha: 0,

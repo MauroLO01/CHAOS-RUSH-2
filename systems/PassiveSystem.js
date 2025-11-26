@@ -147,7 +147,6 @@ export default class PassiveSystem {
         }
     }
 
-    //Logica de ascensão do coveiro
 
     activateAscension(player) {
         const scene = this.scene;
@@ -156,7 +155,7 @@ export default class PassiveSystem {
         player.ascensionCount++;
 
         const asc = player.ascensionCount;
-        const duration = 10000 + (asc * 2000); // +2s por ascensão
+        const duration = 10000 + (asc * 2000);
 
         console.log(`⚰️ ASCENSÃO ${asc} INICIADA (Duração ${duration / 1000}s)`);
 
@@ -186,7 +185,6 @@ export default class PassiveSystem {
             aura.setPosition(player.x, player.y);
         });
 
-        //término
         scene.time.delayedCall(duration, () => {
             player.isInAscencion = false;
             player.kills = 0;
@@ -203,7 +201,6 @@ export default class PassiveSystem {
             console.log("☠️ Ascensão terminou.");
         });
     }
-
 
     //ZUMBI TANK EVOLUTIVO 
     spawnZombieTank(player, asc) {
@@ -230,7 +227,6 @@ export default class PassiveSystem {
 
         scene.tweens.add({ targets: zombie, alpha: 1, duration: 300 });
 
-        //stats
         zombie.maxHp = tier === 1 ? 220 : tier === 2 ? 450 : 320;
         zombie.hp = zombie.maxHp;
 
@@ -240,7 +236,6 @@ export default class PassiveSystem {
         zombie.corrosionRadius = 120 + tier * 40;
         zombie.lifeSteal = tier === 3 ? 0.25 : 0;
 
-        //taunt
         zombie.tauntEvent = scene.time.addEvent({
             delay: 250,
             loop: true,
@@ -274,7 +269,6 @@ export default class PassiveSystem {
             }
         });
 
-        //MORTE
         zombie.takeDamage = dmg => {
             zombie.hp -= dmg;
 
@@ -312,7 +306,6 @@ export default class PassiveSystem {
             zombie.destroy();
         };
 
-        // Duração máxima do zumbi
         scene.time.delayedCall(8000 + tier * 2000, () => {
             if (zombie.active) zombie.onDeath();
         });

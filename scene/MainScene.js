@@ -3,7 +3,7 @@ import Enemy from "../entities/enemy.js";
 import XPOrb from "../entities/XPOrb.js";
 import UpgradeSystem from "../systems/UpgradeSystem.js";
 import ClassSystem from "../systems/classSystems.js";
-import PassiveSystem from "../systems/passiveSystem.js";
+import PassiveSystem from "../systems/PassiveSystem.js";
 import WeaponSystem from "../systems/weaponSystem.js";
 
 export default class MainScene extends Phaser.Scene {
@@ -118,7 +118,6 @@ export default class MainScene extends Phaser.Scene {
     if (selectedClass.damageMultiplier) this.player.baseDamage *= selectedClass.damageMultiplier;
     if (selectedClass.passive) selectedClass.passive(this, this.player);
 
-    // Interface
     this.healthBarBG = this.add.rectangle(100, 20, 200, 20, 0x333333).setOrigin(0, 0).setScrollFactor(0);
     this.healthBar = this.add.rectangle(100, 20, 200, 20, 0xff0000).setOrigin(0, 0).setScrollFactor(0);
     this.xpBarBG = this.add.rectangle(100, 50, 200, 10, 0x222222).setOrigin(0, 0).setScrollFactor(0);

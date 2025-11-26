@@ -4,26 +4,22 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     super(scene, x, y, "player");
     this.scene = scene;
 
-    // Atributos básicos
     this.speed = 200;
     this.maxHP = 100;
     this.currentHP = this.maxHP;
     this.baseDamage = 5;
-    this.damageInterval = 200; // usado pela MainScene para processAuraDamage
-    this.auraRange = 110; // raio em pixels
+    this.damageInterval = 200;
+    this.auraRange = 110;
     this.magnetRadius = 120;
 
-    // Debuffs / multiplicadores
     this.debuffDurationMultiplier = 1;
     this.dotDamageBonus = 1;
     this.slowRaidusBonus = 0;
 
-    // Progressão
     this.level = 1;
     this.xp = 0;
     this.xpToNext = 10;
 
-    // Adiciona o player na cena e ativa física
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
@@ -31,23 +27,17 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.setSize(20, 20);
     this.setTint(0x00ff00);
 
-    // último hit (proteção contra hits rápidos)
     this.lastHitTime = 0;
 
-    // referência ao PassiveSystem será setada pela MainScene
     this.passiveSystem = null;
 
-    // guarda a classe (nome). A aplicação de atributos é feita pela MainScene para evitar duplicação.
     this.currentClass = null;
     if (selectedClass) {
       this.currentClass = typeof selectedClass === "string" ? selectedClass : (selectedClass.name || null);
     }
 
-    // cria a aura física (hitbox). Implementação robusta:
     this._createAura();
 
-    // se quiser logar/debug:
-    // console.log("Player criado", { x, y, selectedClass });
   }
 
   // injeta PassiveSystem (MainScene chama isso)
@@ -55,27 +45,21 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.passiveSystem = passiveSystem;
   }
 
-  // cria um sprite circular invisível que será usado como hitbox/aura
   _createAura() {
-    // tentamos usar uma textura já existente com nome 'aura_player'
     const texKey = "player_aura_temp";
 
-    // cria textura temporária se não existir
     if (!this.scene.textures.exists(texKey)) {
       const g = this.scene.make.graphics({ x: 0, y: 0, add: false });
       g.fillStyle(0xffffff, 1);
-      // desenha um círculo pequeno (vamos escalar o sprite depois)
       g.fillCircle(16, 16, 16);
       g.generateTexture(texKey, 32, 32);
       g.destroy();
     }
 
-    // cria o sprite de aura (visualmente invisível, mas com corpo físico)
     this.aura = this.scene.add.sprite(this.x, this.y, texKey);
-    this.aura.setVisible(false); // se quiser ver o hitbox para debug, setVisible(true)
+    this.aura.setVisible(false); //Visualizar textura (true)
     this.aura.setDepth(1);
 
-    // adiciona física arcade ao aura
     this.scene.physics.add.existing(this.aura);
     if (this.aura.body) {
       // define body como círculo com o raio desejado
@@ -83,32 +67,23 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       body.setAllowGravity(false);
       body.setImmovable(true);
 
-      // body.setCircle existe na maioria das builds Arcade — se não existir, usamos setSize
       if (typeof body.setCircle === "function") {
-        // setCircle espera raio em pixels e pode receber offset, ajustamos para o tamanho que geramos
-        const baseRadius = 16; // baseado no texture 32x32
+        const baseRadius = 16;
         const scale = (this.auraRange / baseRadius);
         this.aura.setScale(scale);
-        // após escalar, recalculamos body circle
         body.setCircle(baseRadius);
-        // body offset ajustado automaticamente pelo setCircle em builds padrão; se necessário, setOffset:
         body.setOffset(0, 0);
       } else {
-        // fallback: setSize com largura/altura (approx)
         body.setSize(this.auraRange * 2, this.auraRange * 2);
       }
 
-      // marca sensor-like (não colidir fisicamente)
-      // Arcade Body não tem isSensor em todas as builds, então usamos colisões imováveis + overlap
       body.checkCollision.none = false;
     }
   }
 
-  // atualiza posição, movimento e pop de aura
   update(cursors) {
     if (this.scene.playerCanMove === false) return;
 
-    // corpo pode ser undefined em alguns edge-cases, checamos
     if (!this.body) return;
 
     // movement
@@ -127,7 +102,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.aura) {
       this.aura.x = this.x;
       this.aura.y = this.y;
-      // também sincroniza o body caso necessário
+
       if (this.aura.body) {
         this.aura.body.x = this.x - (this.aura.displayWidth / 2);
         this.aura.body.y = this.y - (this.aura.displayHeight / 2);
@@ -193,7 +168,6 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.scene.time.delayedCall(3000, () => this.scene.scene.restart());
   }
 
-  // seleciona classe em runtime (aceita string ou objeto com .name)
   selectClass(classObj) {
     const name = typeof classObj === "string" ? classObj : (classObj && classObj.name) || null;
     this.currentClass = name;

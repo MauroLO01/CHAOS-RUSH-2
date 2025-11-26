@@ -31,6 +31,16 @@ export default class ClassSystem {
                 weaponKey: "sinoPurificacao",
                 passiveKey: "ecoSagrado",
                 base: { speedMultiplier: 1.0, damageMultiplier: 1.0, auraRangeBonus: 10 }
+            },
+
+            Warrior: {
+                key: "WARRIOR",
+                name: "Guerreiro arcano",
+                subtitle: "Furia do guerreiro",
+                description: "Lança Do Heroi, use ela e a jogue contra seus inimigos. Mas porque ela chama Draupnir?",
+                weaponKey: "LançaDoHeroi",
+                passiveKey: "RageWarrior",
+                base : { speedMultiplier: 1.6, damageMultiplier: 2.5, auraRangeBonus: 1}
             }
         };
     }
@@ -43,9 +53,7 @@ export default class ClassSystem {
         return this.classes[key];
     }
 
-    // chama UI (você já tem um menu; chame este método se quiser usar esta definição)
     openSelectionMenu(onSelect) {
-        // Mantém compatibilidade: cria botões com as classes definidas aqui.
         const { width, height } = this.scene.scale;
         const bg = this.scene.add.rectangle(0, 0, width, height, 0x000000, 0.8).setOrigin(0).setDepth(100);
         const title = this.scene.add.text(width / 2, 80, "ESCOLHA SUA CLASSE", { fontSize: "36px", fill: "#fff" }).setOrigin(0.5).setDepth(101);
