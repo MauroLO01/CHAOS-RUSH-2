@@ -3,16 +3,22 @@ import MainScene from './scene/MainScene.js';
 
 const config = {
   type: Phaser.AUTO,
-  width: '100%',
-  height: '100%',
-  autoCenter: Phaser.Scale.CENTER_BOTH,
-  mode: Phaser.Scale.RESIZE,
+
+  scale: {
+    mode: Phaser.Scale.RESIZE,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+    width: window.innerWidth,
+    height: window.innerHeight,
+    parent: 'game-container'
+  },
+
   physics: {
     default: 'arcade',
     arcade: {
-      debug: false 
+      debug: false
     }
   },
+
   scene: [MenuScene, MainScene]
 };
 

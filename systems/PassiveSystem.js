@@ -13,9 +13,11 @@ export default class PassiveSystem {
         this.slowReady = true;
     }
 
-
     activateClassAbilities(className) {
-        if (!className) return console.warn("Classe não reconhecida.");
+        if (!className) {
+            console.warn("Classe não reconhecida.");
+            return;
+        }
 
         const normalized = className.toLowerCase()
             .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -23,7 +25,7 @@ export default class PassiveSystem {
 
         const map = {
             alquimista: () => this.activateAlquimista(),
-            coveiro: () => this.activateCoveiro(),
+            coveiro:   () => this.activateCoveiro(),
             sentinela: () => this.activateSentinela()
         };
 
@@ -63,10 +65,12 @@ export default class PassiveSystem {
     }
 
     throwBottle(type) {
-        if (!this.player) return console.warn("Player não definido no PassiveSystem.");
+        if (!this.player) {
+            console.warn("Player não definido no PassiveSystem.");
+            return;
+        }
 
         const bottle = this.scene.physics.add.sprite(this.player.x, this.player.y, "bottle");
-
         this.scene.physics.moveToObject(bottle, this.scene.input.activePointer, 300);
 
         bottle.setData("type", type);
@@ -74,12 +78,12 @@ export default class PassiveSystem {
         bottle.setData("area", this.getBottleArea(type));
     }
 
-
     getBottleDamage(type) {
         switch (type) {
             case "fire": return 40;
             case "poison": return 20;
             case "slow": return 5;
+            default: return 0;
         }
     }
 
@@ -88,6 +92,7 @@ export default class PassiveSystem {
             case "fire": return 40;
             case "poison": return 70;
             case "slow": return 125;
+            default: return 0;
         }
     }
 
@@ -101,6 +106,9 @@ export default class PassiveSystem {
         this.castSlowBottle();
     }
 
+    // -------------------------------------------------------------------
+    // COVEIRO
+
     activateCoveiro() {
         const scene = this.scene;
         const player = scene.player;
@@ -108,27 +116,26 @@ export default class PassiveSystem {
 
         console.log("☠️ Passiva do Coveiro ativada!");
 
-        // Inicialização segura
         player.kills = 0;
         player.ascensionCount = 0;
         player.isInAscencion = false;
+        player.nextAscencionAt = 30;
 
-        player.nextAscencionAt = 30; // primeira ascensão
+        // evitar múltiplos listeners duplicados
+        scene.events.off("enemyKilled", this._enemyKilledHandler);
 
-        scene.events.on("enemyKilled", () => {
-            console.log("🎯 PassiveSystem recebeu enemyKilled");
-            console.log(`evento recebido "enemykilled`)
+        this._enemyKilledHandler = () => {
             if (player.isInAscencion) return;
-
             player.kills++;
             this.updateAscensionBar(player);
-        });
+        };
 
-        // espaço para ativar ascensão
+        scene.events.on("enemyKilled", this._enemyKilledHandler);
+
         scene.input.keyboard.on("keydown-SPACE", () => {
-            if (player.kills < player.nextAscencionAt) return;
-            if (player.isInAscencion) return;
-            this.activateAscension(player);
+            if (player.kills >= player.nextAscencionAt && !player.isInAscencion) {
+                this.activateAscension(player);
+            }
         });
 
         this.updateAscensionBar(player);
@@ -137,16 +144,20 @@ export default class PassiveSystem {
     updateAscensionBar(player) {
         const scene = this.scene;
 
+        if (!scene.passiveBar || !scene.passiveText) return;
+
         const percent = Math.min(player.kills / player.nextAscencionAt, 1);
+
         scene.passiveBar.width = 200 * percent;
         scene.passiveText.setText(`Ascensão: ${Math.floor(percent * 100)}%`);
 
         if (percent >= 1) {
             scene.passiveText.setText("☠️ ASCENSÃO PRONTA!");
             scene.passiveText.setColor("#aa55ff");
+        } else {
+            scene.passiveText.setColor("#ffffff");
         }
     }
-
 
     activateAscension(player) {
         const scene = this.scene;
@@ -155,35 +166,27 @@ export default class PassiveSystem {
         player.ascensionCount++;
 
         const asc = player.ascensionCount;
-        const duration = 10000 + (asc * 2000);
+        const duration = 10000 + asc * 2000;
 
-        console.log(`⚰️ ASCENSÃO ${asc} INICIADA (Duração ${duration / 1000}s)`);
+        console.log(`⚰️ ASCENSÃO ${asc} INICIADA (${duration / 1000}s)`);
 
-        //buff por ascensão
-        // Ascensões cíclicas (1 → 2 → 3 → repete)
+        // Buffs
         const phase = ((asc - 1) % 3) + 1;
 
-        // Buff base de todas
         player.tempSpeed = 40 + asc * 4;
         player.tempMaxHp = 40 + asc * 6;
         player.hp += player.tempMaxHp;
 
-        if (phase >= 2) {
-            player.foicePoisonMultiplier = 1.5;
-        }
+        if (phase >= 2) player.foicePoisonMultiplier = 1.5;
+        if (phase === 3) this.spawnZombieTank(player, asc);
 
-        if (phase === 3) {
-            this.spawnZombieTank(player, asc);
-        }
-
-        //AURA VISUAL 
+        // AURA
         const aura = scene.add.circle(player.x, player.y, 95, 0x8844ff, 0.2)
             .setStrokeStyle(3, 0xbb88ff)
             .setDepth(2);
 
-        const auraUpdate = scene.events.on("update", () => {
-            aura.setPosition(player.x, player.y);
-        });
+        const auraUpdate = () => aura.setPosition(player.x, player.y);
+        scene.events.on("update", auraUpdate);
 
         scene.time.delayedCall(duration, () => {
             player.isInAscencion = false;
@@ -191,7 +194,6 @@ export default class PassiveSystem {
             player.nextAscencionAt += 30;
 
             player.hp -= player.tempMaxHp;
-
             player.foicePoisonMultiplier = 1;
 
             aura.destroy();
@@ -202,7 +204,9 @@ export default class PassiveSystem {
         });
     }
 
-    //ZUMBI TANK EVOLUTIVO 
+    // --------------------------
+    // ZUMBI TANK
+
     spawnZombieTank(player, asc) {
         const scene = this.scene;
 
@@ -211,17 +215,12 @@ export default class PassiveSystem {
         const spawnX = player.x + Phaser.Math.Between(-70, 70);
         const spawnY = player.y + Phaser.Math.Between(-70, 70);
 
-        console.log(`🧟‍♂️ Zumbi Tank Tier ${tier} criado!`);
-
-        const tex = scene.textures.exists("zombie") ? "zombie" : null;
-
-        const zombie = tex
-            ? scene.physics.add.sprite(spawnX, spawnY, "zombie")
-                .setScale(1.4 + tier * 0.2)
+        const hasTexture = scene.textures.exists("zombie");
+        const zombie = hasTexture
+            ? scene.physics.add.sprite(spawnX, spawnY, "zombie").setScale(1.4 + tier * 0.2)
             : scene.add.circle(spawnX, spawnY, 18, 0x44ff44);
 
         scene.physics.add.existing(zombie);
-
         zombie.setDepth(3);
         zombie.setAlpha(0);
 
@@ -236,25 +235,27 @@ export default class PassiveSystem {
         zombie.corrosionRadius = 120 + tier * 40;
         zombie.lifeSteal = tier === 3 ? 0.25 : 0;
 
+        // Taunt
         zombie.tauntEvent = scene.time.addEvent({
             delay: 250,
             loop: true,
             callback: () => {
                 scene.enemies.children.each(e => {
                     if (!e.active) return;
-                    const d = Phaser.Math.Distance.Between(zombie.x, zombie.y, e.x, e.y);
-                    if (d <= zombie.tauntRadius) e.target = zombie;
+                    if (Phaser.Math.Distance.Between(zombie.x, zombie.y, e.x, e.y) <= zombie.tauntRadius) {
+                        e.target = zombie;
+                    }
                 });
             }
         });
 
-        //movimentção
+        // Movimento
         zombie.moveEvent = scene.time.addEvent({
             delay: 400,
             loop: true,
             callback: () => {
                 let nearest = null;
-                let dist = 99999;
+                let dist = Infinity;
 
                 scene.enemies.children.each(e => {
                     const d = Phaser.Math.Distance.Between(zombie.x, zombie.y, e.x, e.y);
@@ -271,7 +272,6 @@ export default class PassiveSystem {
 
         zombie.takeDamage = dmg => {
             zombie.hp -= dmg;
-
             if (zombie.hp <= 0) zombie.onDeath();
         };
 
@@ -280,11 +280,13 @@ export default class PassiveSystem {
             zombie.moveEvent.remove();
 
             const ex = scene.add.circle(zombie.x, zombie.y, zombie.corrosionRadius, 0x55ff55, 0.35)
-                .setDepth(5).setStrokeStyle(4, 0x99ff99);
+                .setDepth(5)
+                .setStrokeStyle(4, 0x99ff99);
 
             scene.tweens.add({ targets: ex, alpha: 0, duration: 3000 });
 
             let ticks = 0;
+
             const tickEvent = scene.time.addEvent({
                 delay: 300,
                 loop: true,
@@ -293,25 +295,25 @@ export default class PassiveSystem {
                         if (!e.active) return;
 
                         const d = Phaser.Math.Distance.Between(ex.x, ex.y, e.x, e.y);
-                        if (d <= zombie.corrosionRadius) {
-                            e.takeDamage(zombie.corrosionDamage);
-                        }
+                        if (d <= zombie.corrosionRadius) e.takeDamage(zombie.corrosionDamage);
                     });
 
-                    ticks++;
-                    if (ticks >= 10) tickEvent.remove();
+                    if (++ticks >= 10) tickEvent.remove();
                 }
             });
 
             zombie.destroy();
         };
 
+        // suicídio automático
         scene.time.delayedCall(8000 + tier * 2000, () => {
             if (zombie.active) zombie.onDeath();
         });
     }
 
-    // Alquimista (inalterado)
+    // -------------------------------------------------------------------
+    // OUTRAS CLASSES
+
     activateAlquimista() {
         console.log("PASSIVA ALC");
     }

@@ -10,7 +10,11 @@ export default class ClassSystem {
                 description: "Frasco instável + Ressaca Mágica (chance de zerar cooldowns ao pegar pickup).",
                 weaponKey: "frascoInstavel",
                 passiveKey: "ressacaMagica",
-                base: { speedMultiplier: 1.0, damageMultiplier: 1.0, auraRangeBonus: 10 }
+                base: {
+                    speedMultiplier: 1.0,
+                    damageMultiplier: 1.0,
+                    auraRangeBonus: 10
+                }
             },
 
             GRAVEDIGGER: {
@@ -20,7 +24,11 @@ export default class ClassSystem {
                 description: "Um necromante que transforma a morte em defesa. Domina a putrefação e comando dos mortos",
                 weaponKey: "foiceEnferrujada",
                 passiveKey: "ascensaoCarcara",
-                base: { speedMultiplier: -0.1, damageMultiplier: 1.2, auraRangeBonus: 30 }
+                base: {
+                    speedMultiplier: 0.9, // corrigido – 10% mais lento, não negativo
+                    damageMultiplier: 1.2,
+                    auraRangeBonus: 30
+                }
             },
 
             SENTINEL: {
@@ -30,18 +38,12 @@ export default class ClassSystem {
                 description: "Sino da Purificação: push + área. Passiva: aumenta knockback e dano ao empurrar.",
                 weaponKey: "sinoPurificacao",
                 passiveKey: "ecoSagrado",
-                base: { speedMultiplier: 1.0, damageMultiplier: 1.0, auraRangeBonus: 10 }
+                base: {
+                    speedMultiplier: 1.0,
+                    damageMultiplier: 1.0,
+                    auraRangeBonus: 10
+                }
             },
-
-            Warrior: {
-                key: "WARRIOR",
-                name: "Guerreiro arcano",
-                subtitle: "Furia do guerreiro",
-                description: "Lança Do Heroi, use ela e a jogue contra seus inimigos. Mas porque ela chama Draupnir?",
-                weaponKey: "LançaDoHeroi",
-                passiveKey: "RageWarrior",
-                base : { speedMultiplier: 1.6, damageMultiplier: 2.5, auraRangeBonus: 1}
-            }
         };
     }
 
@@ -55,8 +57,14 @@ export default class ClassSystem {
 
     openSelectionMenu(onSelect) {
         const { width, height } = this.scene.scale;
-        const bg = this.scene.add.rectangle(0, 0, width, height, 0x000000, 0.8).setOrigin(0).setDepth(100);
-        const title = this.scene.add.text(width / 2, 80, "ESCOLHA SUA CLASSE", { fontSize: "36px", fill: "#fff" }).setOrigin(0.5).setDepth(101);
+
+        const bg = this.scene.add.rectangle(0, 0, width, height, 0x000000, 0.8)
+            .setOrigin(0).setDepth(100);
+
+        const title = this.scene.add.text(width / 2, 80, "ESCOLHA SUA CLASSE", {
+            fontSize: "36px",
+            fill: "#fff"
+        }).setOrigin(0.5).setDepth(101);
 
         const classes = this.getAll();
         const spacing = 220;
@@ -66,16 +74,38 @@ export default class ClassSystem {
 
         classes.forEach((cls, i) => {
             const x = startX + i * spacing;
-            const card = this.scene.add.rectangle(x, height / 2, 200, 260, 0x222233).setDepth(101).setInteractive({ useHandCursor: true });
-            const icon = this.scene.add.text(x, height / 2 - 80, i === 0 ? "🧪" : i === 1 ? "⚰️" : "🔔", { fontSize: "48px" }).setOrigin(0.5).setDepth(102);
-            const name = this.scene.add.text(x, height / 2 - 20, cls.name, { fontSize: "18px", fill: "#ffd700" }).setOrigin(0.5).setDepth(102);
-            const sub = this.scene.add.text(x, height / 2 + 8, cls.subtitle, { fontSize: "14px", fill: "#fff" }).setOrigin(0.5).setDepth(102);
-            const desc = this.scene.add.text(x, height / 2 + 48, cls.description, { fontSize: "12px", fill: "#ddd", align: "center", wordWrap: { width: 180 } }).setOrigin(0.5).setDepth(102);
+
+            const card = this.scene.add.rectangle(x, height / 2, 200, 260, 0x222233)
+                .setDepth(101)
+                .setInteractive({ useHandCursor: true });
+
+            const iconSymbol = i === 0 ? "🧪" : i === 1 ? "⚰️" : "🔔";
+
+            const icon = this.scene.add.text(x, height / 2 - 80, iconSymbol, {
+                fontSize: "48px"
+            }).setOrigin(0.5).setDepth(102);
+
+            const name = this.scene.add.text(x, height / 2 - 20, cls.name, {
+                fontSize: "18px",
+                fill: "#ffd700"
+            }).setOrigin(0.5).setDepth(102);
+
+            const sub = this.scene.add.text(x, height / 2 + 8, cls.subtitle, {
+                fontSize: "14px",
+                fill: "#fff"
+            }).setOrigin(0.5).setDepth(102);
+
+            const desc = this.scene.add.text(x, height / 2 + 48, cls.description, {
+                fontSize: "12px",
+                fill: "#ddd",
+                align: "center",
+                wordWrap: { width: 180 }
+            }).setOrigin(0.5).setDepth(102);
 
             card.on("pointerover", () => card.setFillStyle(0x333355));
             card.on("pointerout", () => card.setFillStyle(0x222233));
+
             card.on("pointerdown", () => {
-                // destruir tudo!
                 [...elements, bg, title].forEach(e => e.destroy());
                 onSelect(cls);
             });

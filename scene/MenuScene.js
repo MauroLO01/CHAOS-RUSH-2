@@ -30,25 +30,23 @@ export default class MenuScene extends Phaser.Scene {
       0.5
     ).setOrigin(0.5).setStrokeStyle(2, 0x00ffff);
 
-    // --- CLASSES ---
     const classes = [
       {
         name: "A Alquimista Espectral",
         desc: "Manipula frascos instáveis que causam efeitos aleatórios.\nChance de resetar cooldowns ao coletar itens.",
-        weaponKey: "frascoInstavel", //  arma principal da Alquimista
+        weaponKey: "frascoInstavel",
       },
       {
         name: "O Coveiro Profano",
         desc: "Profana a terra com a Foice Enferrujada, aplicando Podridão e Lentidão aos inimigos.",
-        weaponKey: "foiceEnferrujada", //  arma do Coveiro
+        weaponKey: "foiceEnferrujada",
       },
       {
         name: "A Sentinela do Sino",
         desc: "Toca o Sino da Purificação, causando dano em área e empurrando inimigos.\nDano bônus quando empurra inimigos.",
-        weaponKey: "sinoPurificacao", //  arma da Sentinela
+        weaponKey: "sinoPurificacao",
       },
     ];
-
 
     const startY = this.scale.height / 2 - 50;
 
@@ -85,10 +83,14 @@ export default class MenuScene extends Phaser.Scene {
       });
     });
 
-    // Créditos ou texto de rodapé
-    this.add.text(this.scale.width / 2, this.scale.height - 40, "Pressione uma classe para começar", {
-      fontSize: "18px",
-      fill: "#888",
-    }).setOrigin(0.5);
+    this.add.text(
+      this.scale.width / 2,
+      this.scale.height - 40,
+      "Pressione uma classe para começar",
+      {
+        fontSize: "18px",
+        fill: "#888",
+      }
+    ).setOrigin(0.5);
   }
 }

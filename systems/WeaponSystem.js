@@ -29,7 +29,7 @@ export default class WeaponSystem {
             case "frascoInstavel":
                 this._useFrasco();
                 break;
-            
+
             case "foiceEnferrujada":
                 this.useFoiceEnferrujada();
                 break;
@@ -38,9 +38,9 @@ export default class WeaponSystem {
                 this._useBell();
                 break;
 
-                default:
-                    console.warn("⚠️ Arma não reconhecida:", key);
-                    break;
+            default:
+                console.warn("⚠️ Arma não reconhecida:", key);
+                break;
         }
     }
 
@@ -88,17 +88,21 @@ export default class WeaponSystem {
         this.startCooldown("frascoInstavel", 1200);
 
         // Quando colidir com inimigo: cria efeito na posição de colisão usando finalRadius
-        scene.physics.add.collider(flask, scene.enemies, (frasco, enemy) => {
-            this._createGroundEffect(frasco.x, frasco.y, chosenEffect, finalRadius);
-            frasco.destroy();
+        const col = scene.physics.add.collider(flask, scene.enemies, (frasco, enemy) => {
+            if (frasco && frasco.active) {
+                this._createGroundEffect(frasco.x, frasco.y, chosenEffect, finalRadius);
+                frasco.destroy();
+            }
         });
 
         // Se não colidir, cria o efeito ao fim da vida
         scene.time.delayedCall(FRASCO_CONFIG.LIFESPAN, () => {
-            if (flask.active) {
+            if (flask && flask.active) {
                 this._createGroundEffect(flask.x, flask.y, chosenEffect, finalRadius);
                 flask.destroy();
             }
+            // garante que o collider não fique referenciando algo morto
+            if (col) col.destroy && col.destroy();
         });
     }
 
@@ -155,12 +159,25 @@ export default class WeaponSystem {
                 enemy.takeDamage(baseDotDamage + 2);
                 break;
             case "slow":
-                enemy.takeDamage(baseDotDamage * 0.1);
+                // small damage tick for slow, mostly slows the enemy
+                enemy.takeDamage(Math.max(1, Math.floor(baseDotDamage * 0.1)));
+
+                if (enemy.speed == null && enemy.body && enemy.body.velocity) {
+                    // try to infer a speed property if missing
+                    enemy._origSpeed = Math.abs(enemy.body.velocity.x) + Math.abs(enemy.body.velocity.y) || 100;
+                    enemy.speed = enemy._origSpeed;
+                }
 
                 if (!enemy._origSpeed) enemy._origSpeed = enemy.speed;
-                if (enemy.speed > enemy._origSpeed * 0.6) {
-                    enemy.speed = enemy._origSpeed * 0.6;
+                // apply slow only if not already slowed beyond target
+                const slowFactor = 0.6;
+                const minSpeed = 30;
+                const targetSpeed = Math.max(enemy._origSpeed * slowFactor, minSpeed);
 
+                if (enemy.speed > targetSpeed) {
+                    enemy.speed = targetSpeed;
+
+                    // restore speed after one tick interval
                     scene.time.delayedCall(FRASCO_CONFIG.AREA_TICK_RATE, () => {
                         if (enemy.active && enemy.speed < enemy._origSpeed) {
                             enemy.speed = enemy._origSpeed;
@@ -195,15 +212,15 @@ export default class WeaponSystem {
         if (this.cooldowns["foiceEnferrujada"]) return;
         this.startCooldown("foiceEnferrujada", 2500);
 
-        const foice = scene.add.sprite(player.x, player.y, "foiceSprite" || null)
+        const foice = scene.add.sprite(player.x, player.y, scene.textures.exists('foiceSprite') ? 'foiceSprite' : null)
             .setDepth(6)
             .setOrigin(0.5)
             .setTint(0x9b7653);
         scene.physics.add.existing(foice);
         foice.body.setAllowGravity(false);
+        if (foice.body.setSize) foice.body.setSize(24, 24);
         foice.body.isSensor = true;
 
-        const CONTROL_TIME = 2000;
         const SPEED = 420;
         foice.isControlling = true;
 
@@ -225,43 +242,44 @@ export default class WeaponSystem {
         scene.physics.add.overlap(foice, scene.enemies, (f, enemy) => {
             if (!enemy || !enemy.active || enemy.isDead) return;
 
-            enemy.takeDamage(5 * (player.dotDamageBonus || 1) * (player.extraVenomBonus || 1));
+            const damage = 5 * (player.dotDamageBonus || 1) * (player.extraVenomBonus || 1) * damageMultiplier;
+            enemy.takeDamage(damage);
             enemy.isMarked = true;
 
             // Adiciona marcador visual acima do inimigo
             if (!enemy.markIndicator || !enemy.markIndicator.active) {
-                const icon = scene.add.sprite(enemy.x, enemy.y - 24, "markIcon" || null)
-                    .setDepth(12)
-                    .setScale(0.5)
-                    .setTint(0xaa55ff)
-                    .setAlpha(0.9);
-
-                // Se não tiver textura "markIcon", cria uma caveirinha desenhada
-                if (!scene.textures.exists("markIcon")) {
-                    icon.destroy();
-                    const textIcon = scene.add.text(enemy.x, enemy.y - 24, "☠️", {
+                let icon = null;
+                if (scene.textures.exists("markIcon")) {
+                    icon = scene.add.sprite(enemy.x, enemy.y - 24, "markIcon")
+                        .setDepth(12)
+                        .setScale(0.5)
+                        .setTint(0xaa55ff)
+                        .setAlpha(0.9);
+                } else {
+                    icon = scene.add.text(enemy.x, enemy.y - 24, "☠️", {
                         fontSize: "16px",
                         color: "#bb55ff",
                         stroke: "#000000",
                         strokeThickness: 3,
                     }).setOrigin(0.5).setDepth(12).setAlpha(0.9);
-
-                    enemy.markIndicator = textIcon;
-                } else {
-                    enemy.markIndicator = icon;
                 }
+
+                enemy.markIndicator = icon;
 
                 // Faz a caveirinha seguir o inimigo
                 const follow = scene.time.addEvent({
                     delay: 30,
                     loop: true,
                     callback: () => {
-                        if (!enemy.active || enemy.isDead) {
-                            if (enemy.markIndicator) enemy.markIndicator.destroy();
+                        if (!enemy || !enemy.active || enemy.isDead) {
+                            if (enemy && enemy.markIndicator) {
+                                enemy.markIndicator.destroy();
+                                enemy.markIndicator = null;
+                            }
                             follow.remove();
                             return;
                         }
-                        if (enemy.markIndicator.active)
+                        if (enemy.markIndicator && enemy.markIndicator.active)
                             enemy.markIndicator.setPosition(enemy.x, enemy.y - 24);
                     }
                 });
@@ -273,16 +291,22 @@ export default class WeaponSystem {
                     delay: 900,
                     loop: true,
                     callback: () => {
-                        if (!enemy.active || enemy.isDead) {
-                            enemy.putrefactionTimer.remove(false);
-                            if (enemy.markIndicator) enemy.markIndicator.destroy();
+                        if (!enemy || !enemy.active || enemy.isDead) {
+                            if (enemy && enemy.putrefactionTimer) {
+                                enemy.putrefactionTimer.remove(false);
+                                enemy.putrefactionTimer = null;
+                            }
+                            if (enemy && enemy.markIndicator) {
+                                enemy.markIndicator.destroy();
+                                enemy.markIndicator = null;
+                            }
                             return;
                         }
 
                         enemy.takeDamage(5 * (player.dotDamageBonus || 1));
-                        enemy.setTint(0x4d7d47);
+                        if (enemy.setTint) enemy.setTint(0x4d7d47);
                         scene.time.delayedCall(120, () => {
-                            if (enemy.active) enemy.clearTint();
+                            if (enemy && enemy.active && enemy.clearTint) enemy.clearTint();
                         });
                     }
                 });
@@ -292,16 +316,16 @@ export default class WeaponSystem {
             if (!enemy._origSpeed) enemy._origSpeed = enemy.speed;
             enemy.speed = Math.max(enemy._origSpeed * 0.7, 30);
             scene.time.delayedCall(2000, () => {
-                if (enemy.active) enemy.speed = enemy._origSpeed;
+                if (enemy && enemy.active) enemy.speed = enemy._origSpeed;
             });
         });
 
         // 🔁 Retorno da foice
-        scene.time.delayedCall(CONTROL_TIME, () => {
+        scene.time.delayedCall(controlTime, () => {
             if (!foice.active) return;
 
             foice.isControlling = false;
-            followTimer.remove(false);
+            if (followTimer) followTimer.remove(false);
 
             scene.tweens.add({
                 targets: foice,
@@ -312,7 +336,9 @@ export default class WeaponSystem {
                 onUpdate: () => {
                     foice.rotation += 0.25;
                 },
-                onComplete: () => foice.destroy()
+                onComplete: () => {
+                    if (foice && foice.destroy) foice.destroy();
+                }
             });
         });
     }
@@ -336,6 +362,8 @@ export default class WeaponSystem {
             }
         });
         this.startCooldown("sinoPurificacao", 1400);
-        scene.time.delayedCall(260, () => wave.destroy());
+        scene.time.delayedCall(260, () => {
+            if (wave && wave.destroy) wave.destroy();
+        });
     }
 }
