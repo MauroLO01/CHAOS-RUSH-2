@@ -5,6 +5,8 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.scene = scene;
     this.type = type;
 
+    this.target = null;
+
     // ----- Escalonamento Dinâmico -----
     const playerLevel = scene.player?.level ?? 1;
     const gameLevel = scene.level ?? scene.wave ?? 1;
@@ -35,12 +37,10 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.setOffset(1, 1);
     this.setTint(stats.tint);
 
-    this.target = scene.player;
-
-    // ----- para inimigos wanderers -----
+    // Wanderer
     this.wanderTimer = 0;
 
-    // ----- para shooters -----
+    // Shooter
     this.shootCooldown = 1000;
     this.lastShot = 0;
   }
@@ -48,10 +48,24 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
   update(time, delta) {
     if (!this.active || this.isDead) return;
 
-    const target = this.target ?? this.scene.player;
+    const aiMap = {
+      normal: "chaser",
+      fast: "chaser",
+      tank: "chaser",
+      elite: "chaser"
+    }
+
+    const aiType = aiMap[this.type] || this.type;
+
+    // 🔥 Correção: agora pega o player *assim que existir*
+    if (!this.target && this.scene.player) {
+      this.target = this.scene.player;
+    }
+
+    const target = this.target;
     if (!target || !target.active) return;
 
-    switch (this.type) {
+    switch (aiType) {
       case "chaser":
         this.updateChaser(target);
         break;
@@ -73,8 +87,12 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     const dx = target.x - this.x;
     const dy = target.y - this.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
+
     if (dist > 0) {
-      this.setVelocity((dx / dist) * this.speed, (dy / dist) * this.speed);
+      this.setVelocity(
+        (dx / dist) * this.speed,
+        (dy / dist) * this.speed
+      );
     }
   }
 
@@ -82,7 +100,10 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.wanderTimer -= delta;
     if (this.wanderTimer <= 0) {
       const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-      this.setVelocity(Math.cos(angle) * this.speed, Math.sin(angle) * this.speed);
+      this.setVelocity(
+        Math.cos(angle) * this.speed,
+        Math.sin(angle) * this.speed
+      );
       this.wanderTimer = Phaser.Math.Between(600, 1500);
     }
   }
@@ -103,7 +124,9 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
   shootAt(target) {
     if (!this.scene?.enemyProjectiles) return;
 
-    this.scene.enemyProjectiles.fireProjectile(this.x, this.y, target.x, target.y);
+    this.scene.enemyProjectiles.fireProjectile(
+      this.x, this.y, target.x, target.y
+    );
   }
 
   // -------------------------
@@ -124,7 +147,6 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.setTint(0xffffff);
     this.scene.time.delayedCall(100, () => {
       if (this && this.active && !this.isDead) {
-        // restaura tint do tipo
         const tints = {
           chaser: 0xff3333,
           wanderer: 0x33ff33,

@@ -26,15 +26,10 @@ export default class MainScene extends Phaser.Scene {
       g.clear();
       g.fillStyle(shape.color, 1);
 
-      if (shape.type === "rect") {
-        g.fillRect(0, 0, shape.w, shape.h);
-      } else if (shape.type === "circle") {
-        g.fillCircle(shape.r, shape.r, shape.r);
-      }
+      if (shape.type === "rect") g.fillRect(0, 0, shape.w, shape.h);
+      else g.fillCircle(shape.r, shape.r, shape.r);
 
-      const texW = shape.w || shape.r * 2;
-      const texH = shape.h || shape.r * 2;
-      g.generateTexture(shape.key, texW, texH);
+      g.generateTexture(shape.key, shape.w || shape.r * 2, shape.h || shape.r * 2);
     });
 
     g.destroy();
@@ -48,22 +43,25 @@ export default class MainScene extends Phaser.Scene {
     this.cursors = this.input.keyboard.addKeys("W,S,A,D");
     this.cameras.main.setBackgroundColor("#202733");
 
+    // Mundo
     this.worldWidth = 5000;
     this.worldHeight = 5000;
     this.physics.world.setBounds(0, 0, this.worldWidth, this.worldHeight);
 
+    // Grupos
     this.enemies = this.physics.add.group();
     this.xpOrbs = this.physics.add.group({ classType: XPOrb, runChildUpdate: true });
     this.enemiesInAura = new Set();
 
+    // Sistemas
     this.upgradeSystem = new UpgradeSystem(this);
     this.classSystem = new ClassSystem(this);
     this.passiveSystem = new PassiveSystem(this);
     this.weaponSystem = null;
 
-    this.passiveBarBg = this.add.rectangle(100, 70, 200, 10, 0x222222).setOrigin(0, 0).setScrollFactor(0);
-    this.passiveBar = this.add.rectangle(100, 70, 0, 10, 0x00ff88).setOrigin(0, 0).setScrollFactor(0);
-
+    // UI
+    this.passiveBarBg = this.add.rectangle(100, 70, 200, 10, 0x222222).setOrigin(0).setScrollFactor(0);
+    this.passiveBar = this.add.rectangle(100, 70, 0, 10, 0x00ff88).setOrigin(0).setScrollFactor(0);
     this.passiveText = this.add.text(310, 65, "Passiva: 0%", {
       fontSize: "14px",
       fill: "#00ffcc"
@@ -71,14 +69,42 @@ export default class MainScene extends Phaser.Scene {
 
     this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
+    // Diretor de Spawn
+    this.SpawnDirector = new SpawnDirector(this);
+
+    // Listener seguro para o SPACE (verifica se a função existe na hora)
+    this.input.keyboard.on("keydown-SPACE", () => {
+      if (this.passiveSystem && typeof this.passiveSystem.activateAscensaoCarcaca === "function") {
+        this.passiveSystem.activateAscensaoCarcaca(this.player);
+      }
+    });
+
     if (this.selectedClass) {
       this.startGame(this.selectedClass);
     } else {
       this.scene.start("MenuScene");
     }
 
-    // Inicializa o SpawnDirector corretamente
-    this.SpawnDirector = new SpawnDirector(this);
+    this.events.on("enemyKilled", (enemy) => {
+      this.spawnXPOrb(enemy.x, enemy.y, enemy.xpValue);
+    });
+  }
+
+  // Método correto: cria Enemy e adiciona ao grupo (essencial para update/colisões)
+  spawnEnemy(type, x, y) {
+    const enemy = new Enemy(this, x, y, type);
+
+    // Adiciona ao grupo de física para que:
+    // - enemy seja iterado em this.enemies.children
+    // - colisões/overlaps funcionem corretamente
+    this.enemies.add(enemy);
+
+    // Caso o Enemy não habilite o corpo por si só, garante que esteja ativo
+    if (enemy.body && enemy.body.enable === false) {
+      enemy.body.enable = true;
+    }
+
+    return enemy;
   }
 
   startGame(selectedClass) {
@@ -106,9 +132,8 @@ export default class MainScene extends Phaser.Scene {
       .replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-z]/g, "");
 
-    if (this.passiveSystem.activateClassAbilities) {
+    if (this.passiveSystem.activateClassAbilities)
       this.passiveSystem.activateClassAbilities(normalizedName);
-    }
 
     if (this.classSystem.menuBackground) this.classSystem.menuBackground.destroy();
     if (this.classSystem.classButtons)
@@ -126,11 +151,12 @@ export default class MainScene extends Phaser.Scene {
     if (selectedClass.damageMultiplier) this.player.baseDamage *= selectedClass.damageMultiplier;
     if (selectedClass.passive) selectedClass.passive(this, this.player);
 
-    this.healthBarBG = this.add.rectangle(100, 20, 200, 20, 0x333333).setOrigin(0, 0).setScrollFactor(0);
-    this.healthBar = this.add.rectangle(100, 20, 200, 20, 0xff0000).setOrigin(0, 0).setScrollFactor(0);
+    // HUD
+    this.healthBarBG = this.add.rectangle(100, 20, 200, 20, 0x333333).setOrigin(0).setScrollFactor(0);
+    this.healthBar = this.add.rectangle(100, 20, 200, 20, 0xff0000).setOrigin(0).setScrollFactor(0);
 
-    this.xpBarBG = this.add.rectangle(100, 50, 200, 10, 0x222222).setOrigin(0, 0).setScrollFactor(0);
-    this.xpBar = this.add.rectangle(100, 50, 0, 10, 0x6a00ff).setOrigin(0, 0).setScrollFactor(0);
+    this.xpBarBG = this.add.rectangle(100, 50, 200, 10, 0x222222).setOrigin(0).setScrollFactor(0);
+    this.xpBar = this.add.rectangle(100, 50, 0, 10, 0x6a00ff).setOrigin(0).setScrollFactor(0);
 
     this.levelText = this.add.text(310, 35, `Lv ${this.player.level}`, {
       fontSize: "16px",
@@ -140,6 +166,7 @@ export default class MainScene extends Phaser.Scene {
     this.updateHealthBar();
     this.updateXpBar();
 
+    // Aura
     if (this.player.aura) {
       this.physics.add.overlap(this.player.aura, this.enemies, (aura, enemy) => {
         this.enemiesInAura.add(enemy);
@@ -149,6 +176,7 @@ export default class MainScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.xpOrbs, this.handleXPCollect, null, this);
     this.physics.add.overlap(this.player, this.enemies, this.handlePlayerHit, null, this);
 
+    // Evento periódico para processar dano da aura
     this.time.addEvent({
       delay: this.player.damageInterval || 200,
       callback: this.processAuraDamage,
@@ -156,24 +184,14 @@ export default class MainScene extends Phaser.Scene {
       loop: true,
     });
 
+    // Garante que física esteja ativa
     this.physics.resume();
-
-    this.input.keyboard.on("keydown-SPACE", () => {
-      if (this.passiveSystem.activateAscensaoCarcaca) {
-        this.passiveSystem.activateAscensaoCarcaca(this.player);
-      }
-    });
-  }
-
-  // 🔥 **NOVO: método necessário para SpawnDirector**
-  spawnEnemy(type, x, y) {
-    return new Enemy(this, x, y, type);
   }
 
   update(time, delta) {
     if (!this.isGameStarted || !this.player) return;
 
-    // Atualiza SpawnDirector passando time e delta UMA VEZ
+    // Atualiza SpawnDirector (apenas uma chamada)
     if (this.SpawnDirector && typeof this.SpawnDirector.update === "function") {
       this.SpawnDirector.update(time, delta);
     }
@@ -181,31 +199,36 @@ export default class MainScene extends Phaser.Scene {
     // Player
     if (this.player.update) this.player.update(this.cursors);
 
-    // Enemies: chamar update(time, delta) — os Enemy que você mostrou usam essa assinatura
-    this.enemies.children.iterate((e) => {
-      if (e && e.update) e.update(time, delta);
+    // Enemies: chamar update(time, delta) — essencial para inimigos se moverem/agir
+    this.enemies.children.iterate((enemy) => {
+      if (enemy && enemy.update) enemy.update(time, delta);
     });
 
-    // XP orbs usam (player) como você tinha antes — mantive assim
-    this.xpOrbs.children.iterate((o) => {
-      if (o && o.update) o.update(this.player);
+    // XP Orbs → update(player)
+    this.xpOrbs.children.iterate((orb) => {
+      if (orb && orb.update) orb.update(this.player);
     });
 
     this.updateHealthBar();
     this.updateXpBar();
 
+    // Ativação por tecla space (JustDown) — complementar ao listener já registrado
     if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
-      if (this.passiveSystem && this.passiveSystem.activateAscensaoCarcaca) {
+      if (this.passiveSystem && typeof this.passiveSystem.activateAscensaoCarcaca === "function") {
         this.passiveSystem.activateAscensaoCarcaca(this.player);
       }
     }
   }
 
-
   processAuraDamage() {
     this.enemiesInAura.forEach(enemy => {
       if (enemy && enemy.active) {
-        enemy.takeDamage(this.player.baseDamage || 10);
+        // usa método consistente do seu Enemy
+        if (typeof enemy.takeDamage === "function") {
+          enemy.takeDamage(this.player.baseDamage || 10);
+        } else if (enemy.currentHP !== undefined) {
+          enemy.currentHP -= (this.player.baseDamage || 10);
+        }
       }
     });
 
@@ -213,18 +236,39 @@ export default class MainScene extends Phaser.Scene {
   }
 
   handleXPCollect(playerSprite, orb) {
+    // proteção: orb pode já ter sido coletada
     if (!orb || orb.collected) return;
 
+    // marca coletada e aplica XP ao player imediatamente
     orb.collected = true;
 
+    // calcula valor de XP (com multiplicadores se tiver)
     const xpValue = orb.value || 10;
-    if (this.player.gainXP) this.player.gainXP(xpValue);
+    if (this.player.gainXP) {
+      // aplica multiplicador se existir
+      const multiplier = this.player.xpGain || 1;
+      this.player.gainXP(Math.floor(xpValue * multiplier));
+    }
 
+    // feedback visual/texto
     this.showXPText(orb.x, orb.y, `+${xpValue} XP`);
 
+    // despacha evento (se alguém escuta)
     this.events.emit("pickupXP", orb);
-    orb.destroy();
+
+    // chama orb.collect() que lida com animação + destruição segura
+    if (typeof orb.collect === "function") {
+      orb.collect(this.player);
+    } else {
+      // fallback seguro: agendar a destruição para o próximo frame
+      orb.setVisible(false);
+      if (orb.body) orb.body.enable = false;
+      this.time.delayedCall(50, () => {
+        try { orb.destroy(); } catch (e) { }
+      });
+    }
   }
+
 
   handlePlayerHit(player, enemy) {
     if (!player.lastHitTime || this.time.now - player.lastHitTime > 1000) {
@@ -263,6 +307,11 @@ export default class MainScene extends Phaser.Scene {
       .setScrollFactor(0);
 
     this.time.delayedCall(3000, () => this.scene.start("MenuScene"));
+  }
+
+  spawnXPOrb(x, y, value) {
+    const orb = new XPOrb(this, x, y, value);
+    this.xpOrbs.add(orb)
   }
 
   updateHealthBar() {

@@ -1,9 +1,8 @@
 export default class SpawnDirector {
     constructor(scene) {
         this.scene = scene;
-        this.player = scene.player;
+        this.player = null;
 
-        // Estado
         this.spawnCooldown = 0;
         this.spawnInterval = 1200;
         this.maxEnemies = 35;
@@ -12,10 +11,8 @@ export default class SpawnDirector {
         this.difficultyMultiplier = 1;
         this.lastLevel = 1;
 
-        // tipos iniciais
         this.enemyPool = ["normal"];
 
-        // desbloqueios por level
         this.unlocks = [
             { level: 3, type: "fast" },
             { level: 5, type: "tank" },
@@ -26,11 +23,11 @@ export default class SpawnDirector {
 
     update(time, delta) {
         if (!this.scene.player) return;
+        if (!this.player) this.player = this.scene.player;
 
         this.updateDifficulty();
 
-        // CORREÇÃO AQUI:
-        const count = this.scene.enemies?.getChildren().length || 0;
+        const count = this.scene.enemies.getChildren().length;
         if (count >= this.maxEnemies) return;
 
         this.spawnCooldown -= delta;
@@ -45,7 +42,7 @@ export default class SpawnDirector {
         const level = this.scene.player.level || 1;
 
         if (level !== this.lastLevel) {
-            this.difficultyMultiplier = 1 + (level * 0.10);
+            this.difficultyMultiplier = 1 + level * 0.10;
 
             this.unlocks.forEach(u => {
                 if (level >= u.level && !this.enemyPool.includes(u.type)) {
@@ -55,6 +52,7 @@ export default class SpawnDirector {
             });
 
             this.maxEnemies = 25 + Math.floor(level * 2);
+
             this.lastLevel = level;
         }
     }
@@ -75,10 +73,7 @@ export default class SpawnDirector {
         enemy.hp = enemy.maxHP;
     }
 
-
-
     getSpawnPosition() {
-        const { width, height } = this.scene.scale;
         const px = this.scene.player.x;
         const py = this.scene.player.y;
 
@@ -86,13 +81,13 @@ export default class SpawnDirector {
 
         while (attempts-- > 0) {
             const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-            const distance = Phaser.Math.Between(this.spawnRadius, this.spawnRadius + 400);
+            const dist = Phaser.Math.Between(this.spawnRadius, this.spawnRadius + 400);
 
-            const x = px + Math.cos(angle) * distance;
-            const y = py + Math.sin(angle) * distance;
+            const x = px + Math.cos(angle) * dist;
+            const y = py + Math.sin(angle) * dist;
 
-            // evita spawn fora da área renderizável
-            if (x < 0 || x > this.scene.worldWidth || y < 0 || y > this.scene.worldHeight) continue;
+            if (x < 0 || x > this.scene.worldWidth) continue;
+            if (y < 0 || y > this.scene.worldHeight) continue;
 
             return { x, y };
         }

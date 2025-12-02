@@ -13,6 +13,20 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.auraRange = 110;
     this.magnetRadius = 120;
 
+    //upgrades NOVO
+    this.critChance = 0;
+    this.critDamage = 1.5;
+    this.lifesteal = 0;
+    this.shield = 0;
+    this.knockback = 1;
+    this.aoe = 1;
+    this.globalCD = 1;
+    this.xpGain = 1;
+    this.pierce = 0;
+    this.projectileSpeed = 1;
+    this.doubleHit = 0;
+    this.pickupRadius = 100;
+
     // Correção: nome da propriedade
     this.debuffDurationMultiplier = 1;
     this.dotDamageBonus = 1;
@@ -124,7 +138,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.scene?.updateXpBar) this.scene.updateXpBar();
 
     while (this.xp >= this.xpToNext) {
-      this.levelUp(true);
+      this.levelUp();
     }
   }
 
@@ -137,7 +151,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     if (!silent) {
       this.scene.time.delayedCall(200, () => {
-        this.scene.upgradeSystem?.open(this);
+        this.scene.upgradeSystem?.openUpgradeMenu(this);
       });
     }
   }

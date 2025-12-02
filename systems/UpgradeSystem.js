@@ -1,296 +1,291 @@
 export default class UpgradeSystem {
   constructor(scene) {
     this.scene = scene;
-    this.isOpen = false;
-    this.optionTexts = [];
+    this.player = scene.player;
 
-    const { width, height } = scene.scale;
+    this.isMenuOpen = false;
+    this.menuContainer = null;
 
-    // ESCURECIMENTO
-    this.bg = scene.add
-      .rectangle(width / 2, height / 2, width, height, 0x000000, 0.75)
-      .setScrollFactor(0)
-      .setDepth(100)
-      .setVisible(false)
-      .setAlpha(0);
-
-    // TÍTULO
-    this.titleText = scene.add
-      .text(width / 2, height * 0.2, "SELECIONE UM UPGRADE", {
-        fontSize: "36px",
-        fill: "#fff",
-        fontStyle: "bold",
-        align: "center",
-      })
-      .setOrigin(0.5)
-      .setDepth(101)
-      .setVisible(false)
-      .setAlpha(0);
-
-    this.availableUpgrades = this.defineUpgrades();
-
-    // INPUTS
-    scene.input.keyboard.on("keydown-ONE", () => this.selectOption(0));
-    scene.input.keyboard.on("keydown-TWO", () => this.selectOption(1));
-    scene.input.keyboard.on("keydown-THREE", () => this.selectOption(2));
-
-    scene.scale.on("resize", this.resize, this);
-  }
-
-  defineUpgrades() {
-    return {
-      aura_base: {
-        text: "🌀 AURA Level 1: +10% de raio",
-        effect: (player) => {
-          player.auraRange *= 1.1;
-          if (player.aura) player.aura.setScale(player.aura.scaleX * 1.1);
-        },
-        type: "base",
+    // -------------------------
+    // LISTA DOS UPGRADES
+    // -------------------------
+    this.upgrades = [
+      {
+        id: "damage_up_1",
+        name: "Dano +20%",
+        desc: "Aumenta o dano causado por todas as armas.",
+        apply: () => { this.player.baseDamage *= 1.20; }
       },
-
-      damage_up: {
-        text: "⚔️ Dano +2",
-        effect: (player) => {
-          player.baseDamage += 2;
-        },
+      {
+        id: "damage_up_2",
+        name: "Dano +35%",
+        desc: "Aumenta significativamente o dano.",
+        apply: () => { this.player.baseDamage *= 1.35; }
       },
-
-      speed_up: {
-        text: "🏃 Velocidade +30",
-        effect: (player) => {
-          player.speed += 30;
-        },
-      },
-
-      magnet_range: {
-        text: "🧲 Ímã: +50 de alcance",
-        effect: (player) => {
-          player.magnetRadius = (player.magnetRadius || 100) + 50;
-        },
-      },
-
-      risky_hp_dmg: {
-        text: "🔥 Risco: Dano +30% | Vida Máx -20%",
-        effect: (player) => {
-          player.baseDamage = Math.floor(player.baseDamage * 1.3);
-          player.maxHP = Math.floor((player.maxHP || 100) * 0.8);
-        },
-        requiredLevel: 3,
-        type: "risky",
-      },
-
-      risky_speed_dmg: {
-        text: "⚡ Risco: Velocidade +40 | Dano -1",
-        effect: (player) => {
-          player.speed += 40;
-          player.baseDamage = Math.max(1, player.baseDamage - 1);
-        },
-        requiredLevel: 2,
-        type: "risky",
-      },
-    };
-  }
-
-  // ANIMAÇÃO DE ENTRADA
-  fadeInMenu() {
-    this.bg.setVisible(true);
-    this.titleText.setVisible(true);
-
-    this.scene.tweens.add({
-      targets: [this.bg, this.titleText],
-      alpha: 1,
-      duration: 400,
-      ease: "Sine.easeInOut",
-    });
-  }
-
-  // ANIMAÇÃO DE SAÍDA
-  fadeOutMenu(callback) {
-    this.scene.tweens.add({
-      targets: [this.bg, this.titleText, ...this.optionTexts.map((o) => o.text)],
-      alpha: 0,
-      duration: 400,
-      ease: "Sine.easeInOut",
-      onComplete: () => {
-        [this.bg, this.titleText, ...this.optionTexts.map((o) => o.text)].forEach(
-          (obj) => obj.setVisible(false)
-        );
-
-        if (callback) callback();
-      },
-    });
-  }
-
-  // ⚠️ AGORA O JOGO PAUSA COMPLETAMENTE AO ABRIR O MENU
-  pauseGame() {
-    this.scene.physics.world.pause();
-    this.scene.isPausedByUpgrade = true;
-  }
-
-  unpauseGame() {
-    this.scene.physics.world.resume();
-    this.scene.isPausedByUpgrade = false;
-  }
-
-  // ABRIR MENU
-  open(player) {
-    if (this.isOpen) return;
-
-    this.isOpen = true;
-
-    this.pauseGame();
-
-    // player não pode mover
-    this.scene.playerCanMove = false;
-    if (this.scene.player && this.scene.player.body)
-      this.scene.player.body.moves = false;
-
-    // ---- UPGRADE AUTOMÁTICO DE NÍVEL 1 ----
-    if (player.level === 1 && !player._initialUpgradeGiven) {
-      const baseUpgrade = this.availableUpgrades.aura_base;
-
-      this.showInitialUpgradeCutscene(baseUpgrade, player);
-
-      player._initialUpgradeGiven = true;
-      return;
-    }
-
-    // Tela normal de upgrades
-    this.showRandomUpgrades(player);
-  }
-
-  showInitialUpgradeCutscene(baseUpgrade, player) {
-    this.fadeInMenu();
-
-    this.titleText.setText("UPGRADE INICIAL OBTIDO!");
-
-    // Texto único
-    const up = this.scene.add
-      .text(
-        this.scene.scale.width / 2,
-        this.scene.scale.height * 0.5,
-        baseUpgrade.text,
-        {
-          fontSize: "28px",
-          fill: "#7fffd4",
-          fontStyle: "bold",
-          align: "center",
-          backgroundColor: "#222",
-          padding: { x: 20, y: 10 },
+      {
+        id: "attack_speed",
+        name: "Atk Speed +15%",
+        desc: "Armas atacam mais rápido.",
+        apply: () => {
+          if (this.scene.weaponLoopEvent)
+            this.scene.weaponLoopEvent.delay *= 0.85;
         }
-      )
+      },
+      {
+        id: "max_hp_1",
+        name: "Vida Máxima +20%",
+        desc: "Aumenta a vida máxima.",
+        apply: () => {
+          this.player.maxHP = Math.floor(this.player.maxHP * 1.2);
+          this.player.currentHP = this.player.maxHP;
+        }
+      },
+      {
+        id: "regen_hp",
+        name: "Regeneração",
+        desc: "Regenera 2 HP por segundo.",
+        apply: () => {
+          if (!this.player.regenEvent) {
+            this.player.regenEvent = this.scene.time.addEvent({
+              delay: 1000,
+              loop: true,
+              callback: () => {
+                this.player.currentHP = Math.min(
+                  this.player.maxHP,
+                  this.player.currentHP + 2
+                );
+              }
+            });
+          }
+        }
+      },
+      {
+        id: "move_speed",
+        name: "Velocidade +15%",
+        desc: "Aumenta velocidade de movimento.",
+        apply: () => { this.player.speed *= 1.15; }
+      },
+      {
+        id: "pickup_range",
+        name: "Pickup +50%",
+        desc: "Aumenta a distância para pegar XP.",
+        apply: () => { this.player.pickupRadius = (this.player.pickupRadius || 100) * 1.5; }
+      },
+      {
+        id: "crit_chance",
+        name: "Crítico +10%",
+        desc: "Ataques têm chance de causar dano crítico.",
+        apply: () => {
+          this.player.critChance = (this.player.critChance || 0) + 0.10;
+        }
+      },
+      {
+        id: "crit_damage",
+        name: "Dano Crítico +50%",
+        desc: "Críticos causam mais dano.",
+        apply: () => {
+          this.player.critDamage = (this.player.critDamage || 1.5) + 0.5;
+        }
+      },
+      {
+        id: "projectile_speed",
+        name: "Projéteis +20% Vel.",
+        desc: "Projéteis viajam mais rápido.",
+        apply: () => { this.player.projectileSpeed = (this.player.projectileSpeed || 1) * 1.20; }
+      },
+      {
+        id: "projectile_pierce",
+        name: "Perfuração +1",
+        desc: "Projéteis atravessam mais um inimigo.",
+        apply: () => { this.player.pierce = (this.player.pierce || 0) + 1; }
+      },
+      {
+        id: "armor",
+        name: "Armadura +2",
+        desc: "Reduz dano recebido.",
+        apply: () => { this.player.armor = (this.player.armor || 0) + 2; }
+      },
+      {
+        id: "knockback",
+        name: "Knockback +40%",
+        desc: "Empurra inimigos para longe.",
+        apply: () => { this.player.knockback = (this.player.knockback || 1) * 1.4; }
+      },
+      {
+        id: "aoe",
+        name: "Área +25%",
+        desc: "Golpes e habilidades ocupam mais espaço.",
+        apply: () => { this.player.aoe = (this.player.aoe || 1) * 1.25; }
+      },
+      {
+        id: "cooldown_global",
+        name: "Cooldown -10%",
+        desc: "Todas habilidades recarregam mais rápido.",
+        apply: () => { this.player.globalCD = (this.player.globalCD || 1) * 0.90; }
+      },
+      {
+        id: "xp_gain",
+        name: "XP +20%",
+        desc: "Ganha mais XP das orbs.",
+        apply: () => { this.player.xpGain = (this.player.xpGain || 1) * 1.20; }
+      },
+      {
+        id: "lifesteal",
+        name: "Lifesteal 3%",
+        desc: "Recupera vida ao causar dano.",
+        apply: () => { this.player.lifesteal = (this.player.lifesteal || 0) + 0.03; }
+      },
+      {
+        id: "shield",
+        name: "Escudo",
+        desc: "Ganha um escudo que absorve 50 de dano.",
+        apply: () => { this.player.shield = (this.player.shield || 0) + 50; }
+      },
+      {
+        id: "double_hit",
+        name: "Golpe Duplo",
+        desc: "10% de chance de atacar 2 vezes.",
+        apply: () => { this.player.doubleHit = (this.player.doubleHit || 0) + 0.10; }
+      }
+    ];
+  }
+
+
+  // -------------------------------------
+  // CHECK DE LEVEL UP
+  checkForLevelUp() {
+    if (this.player.xp >= this.player.xpToNext) {
+      this.player.level++;
+      this.player.xp -= this.player.xpToNext;
+      this.player.xpToNext = Math.floor(this.player.xpToNext * 1.25);
+
+      this.openUpgradeMenu();
+    }
+  }
+
+  // -------------------------------------
+  // MENU DE UPGRADE
+  openUpgradeMenu() {
+    if (this.isMenuOpen) return;
+    this.isMenuOpen = true;
+
+    this.scene.physics.pause();
+    if (this.scene.weaponLoopEvent)
+      this.scene.weaponLoopEvent.paused = true;
+
+    const cam = this.scene.cameras.main;
+    const cx = cam.worldView.x + cam.width / 2;
+    const cy = cam.worldView.y + cam.height / 2;
+
+    this.menuContainer = this.scene.add.container(0, 0);
+
+    const bg = this.scene.add.rectangle(cx, cy, cam.width, cam.height, 0x000000, 0.75)
       .setOrigin(0.5)
-      .setDepth(101)
-      .setAlpha(0);
+      .setScrollFactor(0)
+      .setInteractive();
 
-    this.scene.tweens.add({
-      targets: up,
-      alpha: 1,
-      duration: 300,
-    });
+    this.menuContainer.add(bg);
 
-    // aplicar efeito depois de ler
-    this.scene.time.delayedCall(1700, () => {
-      baseUpgrade.effect(player);
+    const title = this.scene.add.text(cx, cy - 180, "Escolha um Upgrade", {
+      fontSize: "40px",
+      color: "#ffffff",
+      fontStyle: "bold",
+      stroke: "#000",
+      strokeThickness: 8
+    }).setOrigin(0.5);
 
-      // fecha menu
-      this.fadeOutMenu(() => {
-        up.destroy();
-        this.closeMenu();
-      });
-    });
-  }
+    this.menuContainer.add(title);
 
-  // MOSTRA 3 UPGRADES
-  showRandomUpgrades(player) {
-    this.fadeInMenu();
-    this.titleText.setText("SELECIONE UM UPGRADE");
+    // -----------------------------
+    // 3 UPGRADES ALEATÓRIOS
+    const options = Phaser.Utils.Array.Shuffle(this.upgrades).slice(0, 3);
 
-    const all = Object.values(this.availableUpgrades).filter(
-      (u) => u.type !== "base"
-    );
+    let startX = cx - 280;
 
-    const filtered = all.filter(
-      (u) => !u.requiredLevel || player.level >= u.requiredLevel
-    );
+    options.forEach((upg, i) => {
 
-    const list = Phaser.Utils.Array.Shuffle(filtered).slice(0, 3);
-
-    this.optionTexts.forEach((t) => t.text.destroy());
-    this.optionTexts = [];
-
-    const startY = this.scene.scale.height * 0.4;
-    const spacing = 80;
-
-    list.forEach((option, index) => {
-      const y = startY + index * spacing;
-
-      const text = this.scene.add
-        .text(this.scene.scale.width / 2, y, `${index + 1}. ${option.text}`, {
-          fontSize: "22px",
-          fill: option.type === "risky" ? "#ff9900" : "#fff",
-          backgroundColor: "#222",
-          padding: { x: 12, y: 6 },
-        })
+      // CARD
+      const card = this.scene.add.rectangle(startX + 280 * i, cy + 20, 240, 160, 0x1d1d1d)
+        .setStrokeStyle(4, 0x00eaff)
         .setOrigin(0.5)
-        .setScrollFactor(0)
-        .setDepth(101)
-        .setAlpha(0)
-        .setInteractive();
+        .setInteractive({ useHandCursor: true });
 
+      card.setScale(0);
+
+      // Animação de spawn
       this.scene.tweens.add({
-        targets: text,
-        alpha: 1,
-        duration: 300,
-        delay: 150 * index,
+        targets: card,
+        scaleX: 1,
+        scaleY: 1,
+        ease: "Back.Out",
+        duration: 400,
+        delay: i * 120
       });
 
-      text.on("pointerover", () => text.setStyle({ backgroundColor: "#444" }));
-      text.on("pointerout", () => text.setStyle({ backgroundColor: "#222" }));
-      text.on("pointerdown", () => this.selectOption(index));
+      // Nome
+      const name = this.scene.add.text(card.x, card.y - 45, upg.name, {
+        fontSize: "20px",
+        color: "#00eaff",
+        fontStyle: "bold",
+        stroke: "#000",
+        strokeThickness: 4
+      }).setOrigin(0.5);
 
-      this.optionTexts.push({ text, upgrade: option });
+      // Descrição
+      const desc = this.scene.add.text(card.x, card.y + 10, upg.desc, {
+        fontSize: "16px",
+        color: "#ffffff",
+        wordWrap: { width: 200 },
+        align: "center"
+      }).setOrigin(0.5);
+
+      card.on("pointerover", () => {
+        this.scene.tweens.add({
+          targets: card,
+          scaleX: 1.08,
+          scaleY: 1.08,
+          duration: 120,
+          ease: "Linear"
+        });
+        card.setStrokeStyle(5, 0x00ffff);
+      });
+
+      card.on("pointerout", () => {
+        this.scene.tweens.add({
+          targets: card,
+          scaleX: 1,
+          scaleY: 1,
+          duration: 120,
+          ease: "Linear"
+        });
+        card.setStrokeStyle(4, 0x00eaff);
+      });
+
+      // -----------------------------
+      // CLICK
+      card.on("pointerdown", () => {
+        this.applyUpgrade(upg);
+      });
+
+      this.menuContainer.add(card);
+      this.menuContainer.add(name);
+      this.menuContainer.add(desc);
     });
   }
 
-  // SELEÇÃO
-  selectOption(index) {
-    if (!this.isOpen || !this.optionTexts[index]) return;
 
-    const chosen = this.optionTexts[index].upgrade;
-    chosen.effect(this.scene.player);
-
-    console.log(`Upgrade escolhido: ${chosen.text}`);
-
+  applyUpgrade(upgrade) {
+    upgrade.apply();
     this.closeMenu();
   }
 
   closeMenu() {
-    this.fadeOutMenu(() => {
-      this.optionTexts.forEach((t) => t.text.destroy());
-      this.optionTexts = [];
-      this.isOpen = false;
+    this.menuContainer.destroy();
+    this.menuContainer = null;
+    this.isMenuOpen = false;
 
-      // reativar movimentos
-      this.scene.playerCanMove = true;
-      if (this.scene.player && this.scene.player.body)
-        this.scene.player.body.moves = true;
-
-      this.unpauseGame();
-    });
-  }
-
-  resize(gameSize) {
-    const { width, height } = gameSize;
-
-    this.bg.setPosition(width / 2, height / 2).setSize(width, height);
-    this.titleText.setPosition(width / 2, height * 0.2);
-
-    const startY = height * 0.4;
-    const spacing = 80;
-
-    this.optionTexts.forEach((t, index) => {
-      t.text.setPosition(width / 2, startY + index * spacing);
-    });
+    this.scene.physics.resume();
+    if (this.scene.weaponLoopEvent)
+      this.scene.weaponLoopEvent.paused = false;
   }
 }
