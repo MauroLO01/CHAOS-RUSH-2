@@ -44,6 +44,7 @@ export default class MenuScene extends Phaser.Scene {
       {
         name: "A Sentinela do Sino",
         desc: "Toca o Sino da Purificação, causando dano em área e empurrando inimigos.\nDano bônus quando empurra inimigos.",
+        estreia: "EM BREVE!!!!",
         weaponKey: "sinoPurificacao",
       },
     ];
@@ -81,6 +82,12 @@ export default class MenuScene extends Phaser.Scene {
       btn.on("pointerdown", () => {
         this.scene.start("MainScene", { selectedClass: cls });
       });
+
+      const estreia = this.add.text(btn.x - 295, btnY - 35, cls.estreia, {
+        fontSize: "20px",
+        fill: "#ffff00",
+        fontStyle: "bold"
+      }).setOrigin(0.01);
     });
 
     this.add.text(

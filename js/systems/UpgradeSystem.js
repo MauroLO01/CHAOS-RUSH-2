@@ -6,9 +6,7 @@ export default class UpgradeSystem {
     this.isMenuOpen = false;
     this.menuContainer = null;
 
-    // -------------------------
     // LISTA DOS UPGRADES
-    // -------------------------
     this.upgrades = [
       {
         id: "damage_up_1",
@@ -196,8 +194,6 @@ export default class UpgradeSystem {
 
     this.menuContainer.add(title);
 
-    // -----------------------------
-    // 3 UPGRADES ALEATÓRIOS
     const options = Phaser.Utils.Array.Shuffle(this.upgrades).slice(0, 3);
 
     let startX = cx - 280;
@@ -261,7 +257,6 @@ export default class UpgradeSystem {
         card.setStrokeStyle(4, 0x00eaff);
       });
 
-      // -----------------------------
       // CLICK
       card.on("pointerdown", () => {
         this.applyUpgrade(upg);

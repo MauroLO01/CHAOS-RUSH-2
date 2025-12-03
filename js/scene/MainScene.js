@@ -1,4 +1,4 @@
-import Player from "../entities/player.js";
+import Player from "../entities/Player/player.js";
 import Enemy from "../entities/enemy.js";
 import XPOrb from "../entities/XPOrb.js";
 import UpgradeSystem from "../systems/UpgradeSystem.js";
