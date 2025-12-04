@@ -168,6 +168,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     this.emit("die", this.x, this.y, this.xpValue);
     this.scene.events.emit("enemyKilled", this);
+    this.scene.passiveSystem.onEnemyKill();
 
     this.scene.tweens.add({
       targets: this,

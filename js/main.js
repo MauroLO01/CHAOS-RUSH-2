@@ -22,4 +22,4 @@ const config = {
   scene: [MenuScene, MainScene]
 };
 
-const game = new Phaser.Game(config);
+window.game = new Phaser.Game(config);

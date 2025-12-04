@@ -9,7 +9,8 @@ import SpawnDirector from "../Director/SpawnDirector.js";
 
 export default class MainScene extends Phaser.Scene {
   constructor() {
-    super("MainScene");
+    // chave da scene (consistente com o que você usa ao start)
+    super({ key: "MainScene" });
   }
 
   preload() {
@@ -40,6 +41,7 @@ export default class MainScene extends Phaser.Scene {
   }
 
   create() {
+    // inputs
     this.cursors = this.input.keyboard.addKeys("W,S,A,D");
     this.cameras.main.setBackgroundColor("#202733");
 
@@ -53,11 +55,11 @@ export default class MainScene extends Phaser.Scene {
     this.xpOrbs = this.physics.add.group({ classType: XPOrb, runChildUpdate: true });
     this.enemiesInAura = new Set();
 
-    // Sistemas
+    // Sistemas (instancie alguns que NÃO precisam de player)
     this.upgradeSystem = new UpgradeSystem(this);
     this.classSystem = new ClassSystem(this);
-    this.passiveSystem = new PassiveSystem(this);
-    this.weaponSystem = null;
+    this.weaponSystem = null; // criado no startGame
+    // NOTE: NÃO criar PassiveSystem aqui — será criado em startGame com player
 
     // UI
     this.passiveBarBg = this.add.rectangle(100, 70, 200, 10, 0x222222).setOrigin(0).setScrollFactor(0);
@@ -72,45 +74,62 @@ export default class MainScene extends Phaser.Scene {
     // Diretor de Spawn
     this.SpawnDirector = new SpawnDirector(this);
 
-    // Listener seguro para o SPACE (verifica se a função existe na hora)
+    // Listener seguro para o SPACE.
+    // O listener existe já (não depende de passiveSystem existir),
+    // mas só chama o sistema quando ele estiver presente e o player também.
     this.input.keyboard.on("keydown-SPACE", () => {
-      if (this.passiveSystem && typeof this.passiveSystem.activateAscensaoCarcaca === "function") {
-        this.passiveSystem.activateAscensaoCarcaca(this.player);
+      if (!this.passiveSystem || !this.player) return;
+
+      // tenta obter o nome da classe do player (consistente com seu fluxo)
+      const name = (this.player.currentClass || this.player.className || "").toString().toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z]/g, "");
+
+      // chama o método correto (mantenha nomes compatíveis com PassiveSystem)
+      if (name.includes("alquimista")) {
+        // Alquimista: chamada imediata que dispara os frascos (activatePassiva)
+        if (typeof this.passiveSystem.activatePassiva === "function") {
+          this.passiveSystem.activatePassiva();
+        }
+      } else if (name.includes("coveiro")) {
+        // Coveiro: ativa ascensão (passa player se o método precisar)
+        if (typeof this.passiveSystem.activateAscension === "function") {
+          // alguns códigos usam activateAscension(player)
+          try {
+            this.passiveSystem.activateAscension(this.player);
+          } catch (e) {
+            // fallback: tenta sem params
+            try { this.passiveSystem.activateAscension(); } catch (er) { }
+          }
+        }
+      } else if (name.includes("sentinela")) {
+        if (typeof this.passiveSystem.activateSentinela === "function") {
+          this.passiveSystem.activateSentinela();
+        }
+      } else {
+        // Se quiser coisas padrão para outras classes, trate aqui
       }
     });
 
+    // Se já veio com classe selecionada, iniciar — mantém sua lógica antiga
     if (this.selectedClass) {
       this.startGame(this.selectedClass);
     } else {
       this.scene.start("MenuScene");
     }
 
+    // evento global de spawn XP orbs a partir de inimigos mortos
     this.events.on("enemyKilled", (enemy) => {
       this.spawnXPOrb(enemy.x, enemy.y, enemy.xpValue);
     });
   }
 
-  // Método correto: cria Enemy e adiciona ao grupo (essencial para update/colisões)
-  spawnEnemy(type, x, y) {
-    const enemy = new Enemy(this, x, y, type);
-
-    // Adiciona ao grupo de física para que:
-    // - enemy seja iterado em this.enemies.children
-    // - colisões/overlaps funcionem corretamente
-    this.enemies.add(enemy);
-
-    // Caso o Enemy não habilite o corpo por si só, garante que esteja ativo
-    if (enemy.body && enemy.body.enable === false) {
-      enemy.body.enable = true;
-    }
-
-    return enemy;
-  }
-
+  // cria/encontra player e inicia sistemas que precisam dele
   startGame(selectedClass) {
     if (this.isGameStarted) return;
     this.isGameStarted = true;
 
+    // cria o player (uso do seu construtor original)
     this.player = new Player(
       this,
       this.worldWidth / 2,
@@ -123,9 +142,13 @@ export default class MainScene extends Phaser.Scene {
 
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
 
+    // sistemas que precisam de player
     this.weaponSystem = new WeaponSystem(this, this.player);
+    // cria passiveSystem COM player aqui (apenas uma vez)
     this.passiveSystem = new PassiveSystem(this, this.player);
+    this.passiveSystem.activateClassAbilities(selectedClass);
 
+    // ativa as habilidades passivas da classe selecionada
     const normalizedName = (selectedClass.name || "")
       .toLowerCase()
       .normalize("NFD")
@@ -133,7 +156,7 @@ export default class MainScene extends Phaser.Scene {
       .replace(/[^a-z]/g, "");
 
     if (this.passiveSystem.activateClassAbilities)
-      this.passiveSystem.activateClassAbilities(normalizedName);
+      this.passiveSystem.activateClassAbilities()
 
     if (this.classSystem.menuBackground) this.classSystem.menuBackground.destroy();
     if (this.classSystem.classButtons)
@@ -151,7 +174,7 @@ export default class MainScene extends Phaser.Scene {
     if (selectedClass.damageMultiplier) this.player.baseDamage *= selectedClass.damageMultiplier;
     if (selectedClass.passive) selectedClass.passive(this, this.player);
 
-    // HUD
+    // HUD (health/xp) — sua implementação original
     this.healthBarBG = this.add.rectangle(100, 20, 200, 20, 0x333333).setOrigin(0).setScrollFactor(0);
     this.healthBar = this.add.rectangle(100, 20, 200, 20, 0xff0000).setOrigin(0).setScrollFactor(0);
 
@@ -166,13 +189,14 @@ export default class MainScene extends Phaser.Scene {
     this.updateHealthBar();
     this.updateXpBar();
 
-    // Aura
+    // Aura overlap
     if (this.player.aura) {
       this.physics.add.overlap(this.player.aura, this.enemies, (aura, enemy) => {
         this.enemiesInAura.add(enemy);
       });
     }
 
+    // colisões e overlaps
     this.physics.add.overlap(this.player, this.xpOrbs, this.handleXPCollect, null, this);
     this.physics.add.overlap(this.player, this.enemies, this.handlePlayerHit, null, this);
 
@@ -184,27 +208,23 @@ export default class MainScene extends Phaser.Scene {
       loop: true,
     });
 
-    // Garante que física esteja ativa
+    // garante física ativa
     this.physics.resume();
   }
 
   update(time, delta) {
     if (!this.isGameStarted || !this.player) return;
 
-    // Atualiza SpawnDirector (apenas uma chamada)
     if (this.SpawnDirector && typeof this.SpawnDirector.update === "function") {
       this.SpawnDirector.update(time, delta);
     }
 
-    // Player
     if (this.player.update) this.player.update(this.cursors);
 
-    // Enemies: chamar update(time, delta) — essencial para inimigos se moverem/agir
     this.enemies.children.iterate((enemy) => {
       if (enemy && enemy.update) enemy.update(time, delta);
     });
 
-    // XP Orbs → update(player)
     this.xpOrbs.children.iterate((orb) => {
       if (orb && orb.update) orb.update(this.player);
     });
@@ -212,18 +232,13 @@ export default class MainScene extends Phaser.Scene {
     this.updateHealthBar();
     this.updateXpBar();
 
-    // Ativação por tecla space (JustDown) — complementar ao listener já registrado
-    if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
-      if (this.passiveSystem && typeof this.passiveSystem.activateAscensaoCarcaca === "function") {
-        this.passiveSystem.activateAscensaoCarcaca(this.player);
-      }
-    }
+    // Observação: não duplicamos lógica de SPACE no update — o listener em create() já faz o trabalho
   }
 
+  // resto das funções (copie as suas originais, mantive apenas assinaturas)
   processAuraDamage() {
     this.enemiesInAura.forEach(enemy => {
       if (enemy && enemy.active) {
-        // usa método consistente do seu Enemy
         if (typeof enemy.takeDamage === "function") {
           enemy.takeDamage(this.player.baseDamage || 10);
         } else if (enemy.currentHP !== undefined) {
@@ -236,31 +251,22 @@ export default class MainScene extends Phaser.Scene {
   }
 
   handleXPCollect(playerSprite, orb) {
-    // proteção: orb pode já ter sido coletada
     if (!orb || orb.collected) return;
 
-    // marca coletada e aplica XP ao player imediatamente
     orb.collected = true;
 
-    // calcula valor de XP (com multiplicadores se tiver)
     const xpValue = orb.value || 10;
     if (this.player.gainXP) {
-      // aplica multiplicador se existir
       const multiplier = this.player.xpGain || 1;
       this.player.gainXP(Math.floor(xpValue * multiplier));
     }
 
-    // feedback visual/texto
     this.showXPText(orb.x, orb.y, `+${xpValue} XP`);
-
-    // despacha evento (se alguém escuta)
     this.events.emit("pickupXP", orb);
 
-    // chama orb.collect() que lida com animação + destruição segura
     if (typeof orb.collect === "function") {
       orb.collect(this.player);
     } else {
-      // fallback seguro: agendar a destruição para o próximo frame
       orb.setVisible(false);
       if (orb.body) orb.body.enable = false;
       this.time.delayedCall(50, () => {
@@ -268,7 +274,6 @@ export default class MainScene extends Phaser.Scene {
       });
     }
   }
-
 
   handlePlayerHit(player, enemy) {
     if (!player.lastHitTime || this.time.now - player.lastHitTime > 1000) {
@@ -311,7 +316,7 @@ export default class MainScene extends Phaser.Scene {
 
   spawnXPOrb(x, y, value) {
     const orb = new XPOrb(this, x, y, value);
-    this.xpOrbs.add(orb)
+    this.xpOrbs.add(orb);
   }
 
   updateHealthBar() {

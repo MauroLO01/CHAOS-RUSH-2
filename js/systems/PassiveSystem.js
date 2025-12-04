@@ -11,7 +11,13 @@ export default class PassiveSystem {
         this.fireReady = true;
         this.poisonReady = true;
         this.slowReady = true;
+
+        // Correção: evento correto passando enemy
+        this.scene.events.on("enemyKilled", (enemy) => {
+            this.handleKill(enemy);
+        });
     }
+
 
     activateClassAbilities(className) {
         if (!className) {
@@ -25,7 +31,7 @@ export default class PassiveSystem {
 
         const map = {
             alquimista: () => this.activateAlquimista(),
-            coveiro:   () => this.activateCoveiro(),
+            coveiro: () => this.activateCoveiro(),
             sentinela: () => this.activateSentinela()
         };
 
@@ -66,17 +72,42 @@ export default class PassiveSystem {
 
     throwBottle(type) {
         if (!this.player) {
-            console.warn("Player não definido no PassiveSystem.");
+            console.warn("PassiveSystem.throwBottle: player não definido.");
             return;
         }
 
-        const bottle = this.scene.physics.add.sprite(this.player.x, this.player.y, "bottle");
-        this.scene.physics.moveToObject(bottle, this.scene.input.activePointer, 300);
+        // escolhe textura disponível: 'bottle' preferido, senão 'flask'
+        const tex = this.scene.textures.exists("bottle") ? "bottle" :
+            (this.scene.textures.exists("flask") ? "flask" : null);
 
-        bottle.setData("type", type);
-        bottle.setData("damage", this.getBottleDamage(type));
-        bottle.setData("area", this.getBottleArea(type));
+        if (!tex) {
+            console.warn("PassiveSystem.throwBottle: nenhuma textura de bottle/flask encontrada.");
+            return;
+        }
+
+        try {
+            const bottle = this.scene.physics.add.sprite(this.player.x, this.player.y, tex);
+            // se não houver pointer, arremessa numa direção frontal do player (fallback)
+            const target = this.scene.input?.activePointer && this.scene.input.activePointer.x !== undefined
+                ? this.scene.input.activePointer
+                : { x: this.player.x + (this.player.facing === "left" ? -100 : 100), y: this.player.y };
+
+            this.scene.physics.moveToObject(bottle, target, 300);
+
+            bottle.setData("type", type);
+            bottle.setData("damage", this.getBottleDamage(type));
+            bottle.setData("area", this.getBottleArea(type));
+
+            bottle.setDepth(10);
+
+            // opcional: criar colisão/efeito quando bate (dependendo do resto do game)
+            // ex: this.scene.physics.add.overlap(bottle, this.scene.enemies, (...));
+
+        } catch (e) {
+            console.error("Erro ao criar bottle:", e);
+        }
     }
+
 
     getBottleDamage(type) {
         switch (type) {
@@ -97,14 +128,51 @@ export default class PassiveSystem {
     }
 
     activatePassiva() {
+        console.log("⚗️ PASSIVA DO ALQUIMISTA ATIVADA!");
+
+        // reset cooldowns
         this.fireReady = true;
         this.poisonReady = true;
         this.slowReady = true;
 
+        // lança todos os frascos
         this.castFireBottle();
         this.castPoisonBottle();
         this.castSlowBottle();
+
+        // opcional: efeito visual
+        const fx = this.scene.add.circle(this.player.x, this.player.y, 60, 0x00ffcc, 0.2)
+            .setDepth(5);
+
+        this.scene.tweens.add({
+            targets: fx,
+            alpha: 0,
+            duration: 400,
+            onComplete: () => fx.destroy()
+        });
     }
+
+    handleKill(enemy) {
+        const name = this.player.currentClass?.toLowerCase() || "";
+
+        // só o Alquimista carrega passiva com kill
+        if (!name.includes("alquimista")) return;
+
+        // garante variáveis
+        this.player.alchCharge = this.player.alchCharge ?? 0;
+        this.player.alchChargeMax = this.player.alchChargeMax ?? 100;
+
+        // quanto adiciona por kill?
+        const amount = 15; // ajuste como quiser
+
+        this.player.alchCharge = Math.min(
+            this.player.alchCharge + amount,
+            this.player.alchChargeMax
+        );
+
+        this.updateAlchBar(this.player);
+    }
+
 
     // -------------------------------------------------------------------
     // COVEIRO
@@ -315,8 +383,88 @@ export default class PassiveSystem {
     // OUTRAS CLASSES
 
     activateAlquimista() {
-        console.log("PASSIVA ALC");
+        console.log("⚗️ Passiva do Alquimista iniciada/verificando...");
+
+        // assegura player correto
+        if (!this.player) {
+            this.player = this.scene?.player || null;
+            if (!this.player) {
+                console.warn("activateAlquimista: player não disponível ainda.");
+                return;
+            }
+        }
+
+        const scene = this.scene;
+        const player = this.player;
+
+        // garante HUD existente (se não existir, cria placeholders mínimos)
+        if (!scene.passiveBar || !scene.passiveText) {
+            console.warn("HUD de passiva não encontrada — criando placeholders visuais temporários.");
+            try {
+                scene.passiveBarBg = scene.add.rectangle(100, 70, 200, 10, 0x222222).setOrigin(0).setScrollFactor(0);
+                scene.passiveBar = scene.add.rectangle(100, 70, 0, 10, 0x00ff88).setOrigin(0).setScrollFactor(0);
+                scene.passiveText = scene.add.text(310, 65, "Passiva: 0%", { fontSize: "14px", fill: "#00ffcc" }).setScrollFactor(0);
+            } catch (e) {
+                console.error("Erro criando placeholders da HUD de passiva:", e);
+            }
+        }
+
+        // Inicializa variáveis do jogador (se ainda não existirem)
+        player.alchCharge = player.alchCharge ?? 0;
+        player.alchChargeMax = player.alchChargeMax ?? 100;
+
+        // Remove update event antigo (evita duplicação)
+        if (this._alchUpdateEvent) {
+            try { this._alchUpdateEvent.remove(); } catch (e) { }
+            this._alchUpdateEvent = null;
+        }
+
+        const delayMs = 70; // ~7 segundos para encher 100%
+        this._alchUpdateEvent = scene.time.addEvent({
+            delay: delayMs,
+            loop: true,
+            callback: () => {
+                // proteção: se player foi destruído, remove evento
+                if (!player || player.destroyed || player.scene !== scene) {
+                    try { this._alchUpdateEvent.remove(); } catch (e) { }
+                    this._alchUpdateEvent = null;
+                    return;
+                }
+
+                try {
+                    if (player.alchCharge < player.alchChargeMax) {
+                        player.alchCharge++;
+                        this.updateAlchBar(player);
+                    }
+
+                    if (player.alchCharge >= player.alchChargeMax) {
+                        // chama função que reseta cooldowns e cospe frascos
+                        this.activatePassiva();
+                        // zera e atualiza HUD
+                        player.alchCharge = 0;
+                        this.updateAlchBar(player);
+                    }
+                } catch (e) {
+                    console.error("Erro no evento de carregamento da passiva:", e);
+                }
+            }
+        });
+
+        this.updateAlchBar(player);
     }
+
+
+    updateAlchBar(player) {
+        const scene = this.scene;
+        if (!scene || !scene.passiveBar || !scene.passiveText) return;
+
+        const percent = (player.alchCharge || 0) / (player.alchChargeMax || 100);
+        scene.passiveBar.width = 200 * Phaser.Math.Clamp(percent, 0, 1);
+        scene.passiveText.setText(`Passiva: ${Math.floor(percent * 100)}%`);
+        scene.passiveText.setColor(percent >= 1 ? "#ffcc00" : "#00ffcc");
+    }
+
+
 
     activateSentinela() {
         console.log("PASSIVA SENT");
