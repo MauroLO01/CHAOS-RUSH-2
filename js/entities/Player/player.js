@@ -16,6 +16,26 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     const msMult = (typeof this.stats.get === "function") ? this.stats.get("moveSpeedMultiplier") : this.stats.moveSpeedMultiplier;
     this.speed = (msMult && typeof msMult === "number") ? baseSpeed * msMult : baseSpeed;
 
+    // SISTEMAS DE STATUS BASE
+    this.level = 1;
+    this.xp = 0;
+    this.xpToNext = 100;
+
+    // Vida base
+    this.maxHP = this.stats.maxHP || 100;
+    this.currentHP = this.maxHP;
+
+    // Dano base
+    this.baseDamage = this.stats.baseDamage || 5;
+
+    // Velocidade
+    this.speed = this.stats.moveSpeed || 200;
+
+    // Raio do magnetismo
+    this.magnetRadius = (typeof this.stats.get === "function" ? (this.stats.get("pickupRadius") || 1) : (this.stats.pickupRadius || 1)) * 100;
+
+    // Multiplicador de XP
+    this.xpGain = this.stats.xpGain || 1;
 
     // INPUTS
     this.keys = scene.input.keyboard.addKeys({
@@ -39,9 +59,21 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   // ============   MOVIMENTO DO PLAYER   =============
-  update() {
+  update(cursors) {
     this.handleMovement();
     this.handleDash();
+
+    const speed = this.speed;
+
+    let vy = 0;
+    let vx = 0;
+
+    if (cursors.A.isDown) vx -= speed;
+    if (cursors.D.isDown) vx += speed;
+    if (cursors.W.isDown) vy -= speed;
+    if (cursors.S.isDown) vy += speed;
+
+    this.setVelocity(vx, vy);
   }
 
   handleMovement() {
@@ -82,6 +114,43 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       this.scene.time.delayedCall(600, () => {
         this.dashCooldown = false;
       });
+    }
+  }
+
+  // Funções de progressão de nível
+  gainXP(amount) {
+    // usa multiplicador xpGain caso exista
+    const multiplier = this.xpGain ?? 1;
+    const final = Math.floor(amount * multiplier);
+    this.xp += final;
+
+    // atualiza HUD
+    this.scene?.updateXpBar?.();
+
+    // loop de level up caso receba muito XP
+    while (this.xp >= this.xpToNext) {
+      this.levelUp();
+    }
+  }
+
+
+  levelUp() {
+    this.level++;
+    this.xp -= this.xpToNext;
+    this.xpToNext = Math.floor(this.xpToNext * 1.25);
+
+    // CORREÇÃO: nome correto é maxHP (não maxHp)
+    this.maxHP += 10;
+    this.currentHP = this.maxHP;
+    this.baseDamage += 1;
+
+    // Atualiza HUD quando upar (se existir)
+    this.scene?.updateHealthBar?.();
+    this.scene?.updateXpBar?.();
+
+    // Abre menu de upgrades (se existir sistema)
+    if (this.scene?.upgradeSystem && typeof this.scene.upgradeSystem.openUpgradeMenu === "function") {
+      this.scene.upgradeSystem.openUpgradeMenu(this);
     }
   }
 

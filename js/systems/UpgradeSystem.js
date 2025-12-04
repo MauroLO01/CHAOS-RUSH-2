@@ -1,57 +1,74 @@
 export default class UpgradeSystem {
   constructor(scene) {
     this.scene = scene;
-    this.player = scene.player;
 
+    // OBS: não guardamos this.player aqui pois scene.player pode ser criado depois.
     this.isMenuOpen = false;
     this.menuContainer = null;
 
     // LISTA DOS UPGRADES
+    // Cada apply recebe o player atual (pego dinamicamente) e faz mudanças via stats sempre que possível.
     this.upgrades = [
       {
         id: "damage_up_1",
         name: "Dano +20%",
         desc: "Aumenta o dano causado por todas as armas.",
-        apply: () => { this.player.baseDamage *= 1.20; }
+        apply: (player) => {
+          if (!player) return;
+          player.baseDamage = (player.baseDamage || 5) * 1.20;
+        }
       },
       {
         id: "damage_up_2",
         name: "Dano +35%",
         desc: "Aumenta significativamente o dano.",
-        apply: () => { this.player.baseDamage *= 1.35; }
+        apply: (player) => {
+          if (!player) return;
+          player.baseDamage = (player.baseDamage || 5) * 1.35;
+        }
       },
       {
         id: "attack_speed",
         name: "Atk Speed +15%",
         desc: "Armas atacam mais rápido.",
-        apply: () => {
-          if (this.scene.weaponLoopEvent)
-            this.scene.weaponLoopEvent.delay *= 0.85;
+        apply: (player) => {
+          // afeta o evento global de weaponLoopEvent (feito na cena)
+          if (this.scene.weaponLoopEvent) {
+            this.scene.weaponLoopEvent.delay = Math.max(50, this.scene.weaponLoopEvent.delay * 0.85);
+          }
         }
       },
       {
         id: "max_hp_1",
         name: "Vida Máxima +20%",
         desc: "Aumenta a vida máxima.",
-        apply: () => {
-          this.player.maxHP = Math.floor(this.player.maxHP * 1.2);
-          this.player.currentHP = this.player.maxHP;
+        apply: (player) => {
+          if (!player) return;
+          // reajusta maxHP no player (StatsPlayer tem key maxHP)
+          const stats = player.stats;
+          if (stats && typeof stats.get === "function") {
+            stats.multiply("maxHP", 1.20);
+            // garante que player.currentHP acompanhe
+            player.currentHP = Math.min(player.currentHP ?? stats.get("maxHP"), Math.floor(stats.get("maxHP")));
+          } else {
+            player.maxHP = Math.floor((player.maxHP || 100) * 1.20);
+            player.currentHP = player.maxHP;
+          }
         }
       },
       {
         id: "regen_hp",
         name: "Regeneração",
         desc: "Regenera 2 HP por segundo.",
-        apply: () => {
-          if (!this.player.regenEvent) {
-            this.player.regenEvent = this.scene.time.addEvent({
+        apply: (player) => {
+          if (!player) return;
+          if (!player.regenEvent && player.scene) {
+            player.regenEvent = player.scene.time.addEvent({
               delay: 1000,
               loop: true,
               callback: () => {
-                this.player.currentHP = Math.min(
-                  this.player.maxHP,
-                  this.player.currentHP + 2
-                );
+                player.currentHP = Math.min(player.maxHP, (player.currentHP || player.maxHP) + 2);
+                player.scene?.updateHealthBar?.();
               }
             });
           }
@@ -61,101 +78,218 @@ export default class UpgradeSystem {
         id: "move_speed",
         name: "Velocidade +15%",
         desc: "Aumenta velocidade de movimento.",
-        apply: () => { this.player.speed *= 1.15; }
+        apply: (player) => {
+          if (!player) return;
+          const stats = player.stats;
+          if (stats && typeof stats.multiply === "function") {
+            stats.multiply("moveSpeedMultiplier", 1.15);
+            // sincroniza player.speed (se seu player usa movementSpeed getter, isso pode ser redundante)
+            if (typeof stats.get === "function") {
+              player.speed = stats.get("moveSpeedMultiplier") * 200;
+            }
+          } else {
+            player.speed = (player.speed || 200) * 1.15;
+          }
+        }
       },
       {
         id: "pickup_range",
         name: "Pickup +50%",
         desc: "Aumenta a distância para pegar XP.",
-        apply: () => { this.player.pickupRadius = (this.player.pickupRadius || 100) * 1.5; }
+        apply: (player) => {
+          if (!player) return;
+          const stats = player.stats;
+          if (stats && typeof stats.multiply === "function") {
+            stats.multiply("pickupRadius", 1.5);
+            player.magnetRadius = (stats.get("pickupRadius") || 1) * 100;
+          } else {
+            player.pickupRadius = (player.pickupRadius || 100) * 1.5;
+            player.magnetRadius = player.pickupRadius * 100;
+          }
+        }
       },
       {
         id: "crit_chance",
         name: "Crítico +10%",
         desc: "Ataques têm chance de causar dano crítico.",
-        apply: () => {
-          this.player.critChance = (this.player.critChance || 0) + 0.10;
+        apply: (player) => {
+          if (!player) return;
+          const stats = player.stats;
+          if (stats && typeof stats.addFlat === "function") {
+            stats.addFlat("critChance", 0.10);
+          } else {
+            player.critChance = (player.critChance || 0) + 0.10;
+          }
         }
       },
       {
         id: "crit_damage",
         name: "Dano Crítico +50%",
         desc: "Críticos causam mais dano.",
-        apply: () => {
-          this.player.critDamage = (this.player.critDamage || 1.5) + 0.5;
+        apply: (player) => {
+          if (!player) return;
+          const stats = player.stats;
+          if (stats && typeof stats.addFlat === "function") {
+            stats.addFlat("critDamage", 0.5);
+          } else {
+            player.critDamage = (player.critDamage || 1.5) + 0.5;
+          }
         }
       },
       {
         id: "projectile_speed",
         name: "Projéteis +20% Vel.",
         desc: "Projéteis viajam mais rápido.",
-        apply: () => { this.player.projectileSpeed = (this.player.projectileSpeed || 1) * 1.20; }
+        apply: (player) => {
+          if (!player) return;
+          const stats = player.stats;
+          if (stats && typeof stats.multiply === "function") {
+            stats.multiply("projectileSpeed", 1.20);
+          } else {
+            player.projectileSpeed = (player.projectileSpeed || 1) * 1.20;
+          }
+        }
       },
       {
         id: "projectile_pierce",
         name: "Perfuração +1",
         desc: "Projéteis atravessam mais um inimigo.",
-        apply: () => { this.player.pierce = (this.player.pierce || 0) + 1; }
+        apply: (player) => {
+          if (!player) return;
+          const stats = player.stats;
+          if (stats && typeof stats.addFlat === "function") {
+            stats.addFlat("pierce", 1);
+          } else {
+            player.pierce = (player.pierce || 0) + 1;
+          }
+        }
       },
       {
         id: "armor",
         name: "Armadura +2",
         desc: "Reduz dano recebido.",
-        apply: () => { this.player.armor = (this.player.armor || 0) + 2; }
+        apply: (player) => {
+          if (!player) return;
+          const stats = player.stats;
+          if (stats && typeof stats.addFlat === "function") {
+            stats.addFlat("armor", 2);
+          } else {
+            player.armor = (player.armor || 0) + 2;
+          }
+        }
       },
       {
         id: "knockback",
         name: "Knockback +40%",
         desc: "Empurra inimigos para longe.",
-        apply: () => { this.player.knockback = (this.player.knockback || 1) * 1.4; }
+        apply: (player) => {
+          if (!player) return;
+          const stats = player.stats;
+          if (stats && typeof stats.multiply === "function") {
+            stats.multiply("knockback", 1.4);
+          } else {
+            player.knockback = (player.knockback || 1) * 1.4;
+          }
+        }
       },
       {
         id: "aoe",
         name: "Área +25%",
         desc: "Golpes e habilidades ocupam mais espaço.",
-        apply: () => { this.player.aoe = (this.player.aoe || 1) * 1.25; }
+        apply: (player) => {
+          if (!player) return;
+          const stats = player.stats;
+          if (stats && typeof stats.multiply === "function") {
+            stats.multiply("aoe", 1.25);
+          } else {
+            player.aoe = (player.aoe || 1) * 1.25;
+          }
+        }
       },
       {
         id: "cooldown_global",
         name: "Cooldown -10%",
         desc: "Todas habilidades recarregam mais rápido.",
-        apply: () => { this.player.globalCD = (this.player.globalCD || 1) * 0.90; }
+        apply: (player) => {
+          if (!player) return;
+          const stats = player.stats;
+          if (stats && typeof stats.multiply === "function") {
+            stats.multiply("globalCD", 0.90);
+          } else {
+            player.globalCD = (player.globalCD || 1) * 0.90;
+          }
+        }
       },
       {
         id: "xp_gain",
         name: "XP +20%",
         desc: "Ganha mais XP das orbs.",
-        apply: () => { this.player.xpGain = (this.player.xpGain || 1) * 1.20; }
+        apply: (player) => {
+          if (!player) return;
+          const stats = player.stats;
+          if (stats && typeof stats.multiply === "function") {
+            stats.multiply("xpGain", 1.20);
+            player.xpGain = stats.get("xpGain");
+          } else {
+            player.xpGain = (player.xpGain || 1) * 1.20;
+          }
+        }
       },
       {
         id: "lifesteal",
         name: "Lifesteal 3%",
         desc: "Recupera vida ao causar dano.",
-        apply: () => { this.player.lifesteal = (this.player.lifesteal || 0) + 0.03; }
+        apply: (player) => {
+          if (!player) return;
+          const stats = player.stats;
+          if (stats && typeof stats.addFlat === "function") {
+            stats.addFlat("lifesteal", 0.03);
+          } else {
+            player.lifesteal = (player.lifesteal || 0) + 0.03;
+          }
+        }
       },
       {
         id: "shield",
         name: "Escudo",
         desc: "Ganha um escudo que absorve 50 de dano.",
-        apply: () => { this.player.shield = (this.player.shield || 0) + 50; }
+        apply: (player) => {
+          if (!player) return;
+          const stats = player.stats;
+          if (stats && typeof stats.addFlat === "function") {
+            stats.addFlat("shield", 50);
+          } else {
+            player.shield = (player.shield || 0) + 50;
+          }
+        }
       },
       {
         id: "double_hit",
         name: "Golpe Duplo",
         desc: "10% de chance de atacar 2 vezes.",
-        apply: () => { this.player.doubleHit = (this.player.doubleHit || 0) + 0.10; }
+        apply: (player) => {
+          if (!player) return;
+          const stats = player.stats;
+          if (stats && typeof stats.addFlat === "function") {
+            stats.addFlat("doubleHit", 0.10);
+          } else {
+            player.doubleHit = (player.doubleHit || 0) + 0.10;
+          }
+        }
       }
     ];
   }
 
-
   // -------------------------------------
-  // CHECK DE LEVEL UP
+  // CHECK DE LEVEL UP (opcional: use scene.player atual)
   checkForLevelUp() {
-    if (this.player.xp >= this.player.xpToNext) {
-      this.player.level++;
-      this.player.xp -= this.player.xpToNext;
-      this.player.xpToNext = Math.floor(this.player.xpToNext * 1.25);
+    const p = this.scene.player;
+    if (!p) return;
+
+    if (p.xp >= p.xpToNext) {
+      p.level++;
+      p.xp -= p.xpToNext;
+      p.xpToNext = Math.floor(p.xpToNext * 1.25);
 
       this.openUpgradeMenu();
     }
@@ -268,14 +402,41 @@ export default class UpgradeSystem {
     });
   }
 
-
   applyUpgrade(upgrade) {
-    upgrade.apply();
+    const player = this.scene.player;
+    if (!player) {
+      console.warn("UpgradeSystem: player not found when applying upgrade", upgrade.id);
+      return;
+    }
+
+    try {
+      // apply recebe player
+      upgrade.apply(player);
+    } catch (e) {
+      console.error("Upgrade apply error:", e, upgrade);
+    }
+
+    // Sincronizações pós-upgrade (ex.: magnetRadius, speed derived from stats)
+    try {
+      if (player.stats && typeof player.stats.get === "function") {
+        // sincroniza valores que o MainScene e orbs usam
+        if (player.stats.get("pickupRadius") !== undefined) {
+          player.magnetRadius = (player.stats.get("pickupRadius") || 1) * 100;
+        }
+        if (player.stats.get("moveSpeedMultiplier") !== undefined) {
+          player.speed = (player.stats.get("moveSpeedMultiplier") || 1) * 200;
+        }
+        if (player.stats.get("xpGain") !== undefined) {
+          player.xpGain = player.stats.get("xpGain");
+        }
+      }
+    } catch (e) { /* ignore small sync errors */ }
+
     this.closeMenu();
   }
 
   closeMenu() {
-    this.menuContainer.destroy();
+    if (this.menuContainer) this.menuContainer.destroy();
     this.menuContainer = null;
     this.isMenuOpen = false;
 

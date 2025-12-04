@@ -1,4 +1,3 @@
-// entities/XPOrb.js
 export default class XPOrb extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, value = 10) {
     super(scene, x, y, "xp_orb");
@@ -53,38 +52,31 @@ export default class XPOrb extends Phaser.Physics.Arcade.Sprite {
   }
 
   update(player) {
-    // Se já coletada, apenas ignore (a limpeza será feita no collect)
-    if (this.collected) return;
-
-    // Se trail/remanescentes removidos, protege acessos
-    if (this.trail) {
-      this.trail.x = this.x;
-      this.trail.y = this.y;
-    }
-
-    // flutuação — use delta seguro via time
-    if (!this.isAttracted) {
-      // usa delta do jogo, mas proteja caso time não exista
-      const deltaSec = (this.scene?.game?.loop?.delta ?? 16) / 1000;
-      this.floatTimer += deltaSec;
-      if (this.body) this.body.velocity.y = Math.sin(this.floatTimer * 2) * 15;
-    } else {
-      this.floatTimer = 0;
-    }
-
-    // atração
-    if (player && player.magnetRadius) {
+    const magnet = player?.magnetRadius ?? (player?.pickupRadius ? player.pickupRadius * 100 : undefined);
+    if (player && magnet) {
       const dist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y);
-      if (dist <= player.magnetRadius) {
+
+      // Se estiver dentro do raio de magnetismo, puxa a orb
+      if (dist <= magnet) {
         this.isAttracted = true;
 
         // brilho e trail
         this.setAlpha(Phaser.Math.Clamp(this.alpha + 0.02, 0.9, 1.4));
         if (this.trail) this.trail.setAlpha(Phaser.Math.Clamp(this.trail.alpha + 0.01, 0.05, 0.25));
 
-        // mover
+        // mover para o player
         this.scene.physics.moveToObject(this, player, 300);
+
+        // --- FALLBACK: se a orb estiver muito próxima, force a coleta (evita passar reto) ---
+        // distância de “coleta automática” — ajuste conforme o tamanho do player/orb
+        const autoCollectDistance = 18;
+        if (dist <= autoCollectDistance) {
+          // chama collect diretamente (proteções internas do collect impedem duplicação)
+          this.collect(player);
+        }
+
       } else {
+        // fora do raio
         this.isAttracted = false;
         this.setAlpha(0.9);
         if (this.trail) this.trail.setAlpha(0.15);
@@ -142,6 +134,44 @@ export default class XPOrb extends Phaser.Physics.Arcade.Sprite {
       } catch (e) { }
     }
   }
+
+  collect(player) {
+    if (this._destroyScheduled) return;
+    this._destroyScheduled = true;
+
+    // Para a atração
+    this.isAttracted = false;
+
+    // Para a física
+    if (this.body) {
+      this.body.enable = false;
+      this.setVelocity(0, 0);
+    }
+
+    // Para os tweens
+    if (this._pulseTween) this._pulseTween.stop();
+    if (this._trailTween) this._trailTween.stop();
+
+    // Some o trail
+    if (this.trail) {
+      this.trail.setVisible(false);
+      this.scene.tweens.killTweensOf(this.trail);
+      this.trail.destroy();
+    }
+
+    // Pequena animação de absorção
+    this.scene.tweens.add({
+      targets: this,
+      scale: 0,
+      alpha: 0,
+      duration: 120,
+      ease: "Cubic.easeIn",
+      onComplete: () => {
+        try { this.destroy(); } catch (e) { }
+      }
+    });
+  }
+
 
   /**
    * Remove referências extras e destrói o sprite com segurança.

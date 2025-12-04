@@ -3,8 +3,10 @@ export default class DamagePlayer {
         this.player = player;
         this.stats = stats;
 
-        const maxHP = (typeof stats.get === 'function') ? stats.get("maxHP") : (stats.maxHP ?? 100);
-        this.player.currentHP = maxHP;
+        const maxHP = (typeof stats.get === "function") ? (stats.get("maxHP") || 100) : (stats.maxHP || 100);
+        if (typeof this.player.currentHP !== "number") {
+            this.player.currentHP = maxHP;
+        }
     }
 
     takeDamage(amount) {
