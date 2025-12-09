@@ -322,15 +322,16 @@ export default class UpgradeSystem {
     const cx = cam.worldView.x + cam.width / 2;
     const cy = cam.worldView.y + cam.height / 2;
 
-    this.menuContainer = this.scene.add.container(0, 0);
+    this.menuContainer = this.scene.add.container(0, 0).setDepth(9999);
 
     const bg = this.scene.add
       .rectangle(cx, cy, cam.width, cam.height, 0x000000, 0.75)
       .setOrigin(0.5)
       .setScrollFactor(0)
-      .setInteractive();
+      .setInteractive()
+      .setDepth(9999);
 
-    this.menuContainer.add(bg);
+    this.menuContainer.add(bg).setDepth(9999);
 
     const title = this.scene.add
       .text(cx, cy - 180, "Escolha um Upgrade", {
@@ -340,9 +341,10 @@ export default class UpgradeSystem {
         stroke: "#000",
         strokeThickness: 8,
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setDepth(9999);
 
-    this.menuContainer.add(title);
+    this.menuContainer.add(title).setDepth(9999);
 
     const options = Phaser.Utils.Array.Shuffle(this.upgrades).slice(0, 3);
 
@@ -354,7 +356,8 @@ export default class UpgradeSystem {
         .rectangle(startX + 280 * i, cy + 20, 240, 160, 0x1d1d1d)
         .setStrokeStyle(4, 0x00eaff)
         .setOrigin(0.5)
-        .setInteractive({ useHandCursor: true });
+        .setInteractive({ useHandCursor: true })
+        .setDepth(9999);
 
       card.setScale(0);
 
@@ -377,7 +380,8 @@ export default class UpgradeSystem {
           stroke: "#000",
           strokeThickness: 4,
         })
-        .setOrigin(0.5);
+        .setOrigin(0.5)
+        .setDepth(9999);
 
       // Descrição
       const desc = this.scene.add
@@ -387,7 +391,8 @@ export default class UpgradeSystem {
           wordWrap: { width: 200 },
           align: "center",
         })
-        .setOrigin(0.5);
+        .setOrigin(0.5)
+        .setDepth(9999);
 
       card.on("pointerover", () => {
         this.scene.tweens.add({
