@@ -1,9 +1,9 @@
 import Player from "../entities/Player/player.js";
-import Enemy from "../entities/enemy.js";
+import Enemy from "../entities/Enemy/enemy.js";
 import XPOrb from "../entities/XPOrb.js";
 import UpgradeSystem from "../systems/UpgradeSystem.js";
 import ClassSystem from "../systems/ClassSystems.js";
-import PassiveSystem from "../systems/PassiveSystem.js";
+import PassiveSystem from "../systems/PassiveSystem/PassiveSystem.js";
 import WeaponSystem from "../systems/WeaponSystem.js";
 import SpawnDirector from "../Director/SpawnDirector.js";
 
@@ -122,6 +122,13 @@ export default class MainScene extends Phaser.Scene {
     this.events.on("enemyKilled", (enemy) => {
       this.spawnXPOrb(enemy.x, enemy.y, enemy.xpValue);
     });
+
+    this.events.on("enemyKilled", (enemy) => {
+  if (this.passiveSystem && typeof this.passiveSystem.onEnemyKilled === "function") {
+    this.passiveSystem.onEnemyKilled(enemy);
+  }
+});
+
   }
 
   // cria/encontra player e inicia sistemas que precisam dele
@@ -146,17 +153,7 @@ export default class MainScene extends Phaser.Scene {
     this.weaponSystem = new WeaponSystem(this, this.player);
     // cria passiveSystem COM player aqui (apenas uma vez)
     this.passiveSystem = new PassiveSystem(this, this.player);
-    this.passiveSystem.activateClassAbilities(selectedClass);
-
-    // ativa as habilidades passivas da classe selecionada
-    const normalizedName = (selectedClass.name || "")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z]/g, "");
-
-    if (this.passiveSystem.activateClassAbilities)
-      this.passiveSystem.activateClassAbilities()
+    this.passiveSystem.activateClassAbilities(selectedClass.name);
 
     if (this.classSystem.menuBackground) this.classSystem.menuBackground.destroy();
     if (this.classSystem.classButtons)

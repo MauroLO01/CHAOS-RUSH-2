@@ -15,8 +15,8 @@ export default class UpgradeSystem {
         desc: "Aumenta o dano causado por todas as armas.",
         apply: (player) => {
           if (!player) return;
-          player.baseDamage = (player.baseDamage || 5) * 1.20;
-        }
+          player.baseDamage = (player.baseDamage || 5) * 1.2;
+        },
       },
       {
         id: "damage_up_2",
@@ -25,7 +25,7 @@ export default class UpgradeSystem {
         apply: (player) => {
           if (!player) return;
           player.baseDamage = (player.baseDamage || 5) * 1.35;
-        }
+        },
       },
       {
         id: "attack_speed",
@@ -34,9 +34,12 @@ export default class UpgradeSystem {
         apply: (player) => {
           // afeta o evento global de weaponLoopEvent (feito na cena)
           if (this.scene.weaponLoopEvent) {
-            this.scene.weaponLoopEvent.delay = Math.max(50, this.scene.weaponLoopEvent.delay * 0.85);
+            this.scene.weaponLoopEvent.delay = Math.max(
+              50,
+              this.scene.weaponLoopEvent.delay * 0.85
+            );
           }
-        }
+        },
       },
       {
         id: "max_hp_1",
@@ -47,14 +50,17 @@ export default class UpgradeSystem {
           // reajusta maxHP no player (StatsPlayer tem key maxHP)
           const stats = player.stats;
           if (stats && typeof stats.get === "function") {
-            stats.multiply("maxHP", 1.20);
+            stats.multiply("maxHP", 1.2);
             // garante que player.currentHP acompanhe
-            player.currentHP = Math.min(player.currentHP ?? stats.get("maxHP"), Math.floor(stats.get("maxHP")));
+            player.currentHP = Math.min(
+              player.currentHP ?? stats.get("maxHP"),
+              Math.floor(stats.get("maxHP"))
+            );
           } else {
-            player.maxHP = Math.floor((player.maxHP || 100) * 1.20);
+            player.maxHP = Math.floor((player.maxHP || 100) * 1.2);
             player.currentHP = player.maxHP;
           }
-        }
+        },
       },
       {
         id: "regen_hp",
@@ -67,12 +73,15 @@ export default class UpgradeSystem {
               delay: 1000,
               loop: true,
               callback: () => {
-                player.currentHP = Math.min(player.maxHP, (player.currentHP || player.maxHP) + 2);
+                player.currentHP = Math.min(
+                  player.maxHP,
+                  (player.currentHP || player.maxHP) + 2
+                );
                 player.scene?.updateHealthBar?.();
-              }
+              },
             });
           }
-        }
+        },
       },
       {
         id: "move_speed",
@@ -90,7 +99,7 @@ export default class UpgradeSystem {
           } else {
             player.speed = (player.speed || 200) * 1.15;
           }
-        }
+        },
       },
       {
         id: "pickup_range",
@@ -106,7 +115,7 @@ export default class UpgradeSystem {
             player.pickupRadius = (player.pickupRadius || 100) * 1.5;
             player.magnetRadius = player.pickupRadius * 100;
           }
-        }
+        },
       },
       {
         id: "crit_chance",
@@ -116,11 +125,11 @@ export default class UpgradeSystem {
           if (!player) return;
           const stats = player.stats;
           if (stats && typeof stats.addFlat === "function") {
-            stats.addFlat("critChance", 0.10);
+            stats.addFlat("critChance", 0.1);
           } else {
-            player.critChance = (player.critChance || 0) + 0.10;
+            player.critChance = (player.critChance || 0) + 0.1;
           }
-        }
+        },
       },
       {
         id: "crit_damage",
@@ -134,7 +143,7 @@ export default class UpgradeSystem {
           } else {
             player.critDamage = (player.critDamage || 1.5) + 0.5;
           }
-        }
+        },
       },
       {
         id: "projectile_speed",
@@ -144,11 +153,11 @@ export default class UpgradeSystem {
           if (!player) return;
           const stats = player.stats;
           if (stats && typeof stats.multiply === "function") {
-            stats.multiply("projectileSpeed", 1.20);
+            stats.multiply("projectileSpeed", 1.2);
           } else {
-            player.projectileSpeed = (player.projectileSpeed || 1) * 1.20;
+            player.projectileSpeed = (player.projectileSpeed || 1) * 1.2;
           }
-        }
+        },
       },
       {
         id: "projectile_pierce",
@@ -162,7 +171,7 @@ export default class UpgradeSystem {
           } else {
             player.pierce = (player.pierce || 0) + 1;
           }
-        }
+        },
       },
       {
         id: "armor",
@@ -176,7 +185,7 @@ export default class UpgradeSystem {
           } else {
             player.armor = (player.armor || 0) + 2;
           }
-        }
+        },
       },
       {
         id: "knockback",
@@ -190,7 +199,7 @@ export default class UpgradeSystem {
           } else {
             player.knockback = (player.knockback || 1) * 1.4;
           }
-        }
+        },
       },
       {
         id: "aoe",
@@ -204,7 +213,7 @@ export default class UpgradeSystem {
           } else {
             player.aoe = (player.aoe || 1) * 1.25;
           }
-        }
+        },
       },
       {
         id: "cooldown_global",
@@ -214,11 +223,11 @@ export default class UpgradeSystem {
           if (!player) return;
           const stats = player.stats;
           if (stats && typeof stats.multiply === "function") {
-            stats.multiply("globalCD", 0.90);
+            stats.multiply("globalCD", 0.9);
           } else {
-            player.globalCD = (player.globalCD || 1) * 0.90;
+            player.globalCD = (player.globalCD || 1) * 0.9;
           }
-        }
+        },
       },
       {
         id: "xp_gain",
@@ -228,12 +237,12 @@ export default class UpgradeSystem {
           if (!player) return;
           const stats = player.stats;
           if (stats && typeof stats.multiply === "function") {
-            stats.multiply("xpGain", 1.20);
+            stats.multiply("xpGain", 1.2);
             player.xpGain = stats.get("xpGain");
           } else {
-            player.xpGain = (player.xpGain || 1) * 1.20;
+            player.xpGain = (player.xpGain || 1) * 1.2;
           }
-        }
+        },
       },
       {
         id: "lifesteal",
@@ -247,7 +256,7 @@ export default class UpgradeSystem {
           } else {
             player.lifesteal = (player.lifesteal || 0) + 0.03;
           }
-        }
+        },
       },
       {
         id: "shield",
@@ -261,7 +270,7 @@ export default class UpgradeSystem {
           } else {
             player.shield = (player.shield || 0) + 50;
           }
-        }
+        },
       },
       {
         id: "double_hit",
@@ -271,12 +280,12 @@ export default class UpgradeSystem {
           if (!player) return;
           const stats = player.stats;
           if (stats && typeof stats.addFlat === "function") {
-            stats.addFlat("doubleHit", 0.10);
+            stats.addFlat("doubleHit", 0.1);
           } else {
-            player.doubleHit = (player.doubleHit || 0) + 0.10;
+            player.doubleHit = (player.doubleHit || 0) + 0.1;
           }
-        }
-      }
+        },
+      },
     ];
   }
 
@@ -301,9 +310,13 @@ export default class UpgradeSystem {
     if (this.isMenuOpen) return;
     this.isMenuOpen = true;
 
+    const player = this.scene.player;
+    if (!player) return;
+
+    player.lockInput();
+
     this.scene.physics.pause();
-    if (this.scene.weaponLoopEvent)
-      this.scene.weaponLoopEvent.paused = true;
+    if (this.scene.weaponLoopEvent) this.scene.weaponLoopEvent.paused = true;
 
     const cam = this.scene.cameras.main;
     const cx = cam.worldView.x + cam.width / 2;
@@ -311,20 +324,23 @@ export default class UpgradeSystem {
 
     this.menuContainer = this.scene.add.container(0, 0);
 
-    const bg = this.scene.add.rectangle(cx, cy, cam.width, cam.height, 0x000000, 0.75)
+    const bg = this.scene.add
+      .rectangle(cx, cy, cam.width, cam.height, 0x000000, 0.75)
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setInteractive();
 
     this.menuContainer.add(bg);
 
-    const title = this.scene.add.text(cx, cy - 180, "Escolha um Upgrade", {
-      fontSize: "40px",
-      color: "#ffffff",
-      fontStyle: "bold",
-      stroke: "#000",
-      strokeThickness: 8
-    }).setOrigin(0.5);
+    const title = this.scene.add
+      .text(cx, cy - 180, "Escolha um Upgrade", {
+        fontSize: "40px",
+        color: "#ffffff",
+        fontStyle: "bold",
+        stroke: "#000",
+        strokeThickness: 8,
+      })
+      .setOrigin(0.5);
 
     this.menuContainer.add(title);
 
@@ -333,9 +349,9 @@ export default class UpgradeSystem {
     let startX = cx - 280;
 
     options.forEach((upg, i) => {
-
       // CARD
-      const card = this.scene.add.rectangle(startX + 280 * i, cy + 20, 240, 160, 0x1d1d1d)
+      const card = this.scene.add
+        .rectangle(startX + 280 * i, cy + 20, 240, 160, 0x1d1d1d)
         .setStrokeStyle(4, 0x00eaff)
         .setOrigin(0.5)
         .setInteractive({ useHandCursor: true });
@@ -349,25 +365,29 @@ export default class UpgradeSystem {
         scaleY: 1,
         ease: "Back.Out",
         duration: 400,
-        delay: i * 120
+        delay: i * 120,
       });
 
       // Nome
-      const name = this.scene.add.text(card.x, card.y - 45, upg.name, {
-        fontSize: "20px",
-        color: "#00eaff",
-        fontStyle: "bold",
-        stroke: "#000",
-        strokeThickness: 4
-      }).setOrigin(0.5);
+      const name = this.scene.add
+        .text(card.x, card.y - 45, upg.name, {
+          fontSize: "20px",
+          color: "#00eaff",
+          fontStyle: "bold",
+          stroke: "#000",
+          strokeThickness: 4,
+        })
+        .setOrigin(0.5);
 
       // Descrição
-      const desc = this.scene.add.text(card.x, card.y + 10, upg.desc, {
-        fontSize: "16px",
-        color: "#ffffff",
-        wordWrap: { width: 200 },
-        align: "center"
-      }).setOrigin(0.5);
+      const desc = this.scene.add
+        .text(card.x, card.y + 10, upg.desc, {
+          fontSize: "16px",
+          color: "#ffffff",
+          wordWrap: { width: 200 },
+          align: "center",
+        })
+        .setOrigin(0.5);
 
       card.on("pointerover", () => {
         this.scene.tweens.add({
@@ -375,7 +395,7 @@ export default class UpgradeSystem {
           scaleX: 1.08,
           scaleY: 1.08,
           duration: 120,
-          ease: "Linear"
+          ease: "Linear",
         });
         card.setStrokeStyle(5, 0x00ffff);
       });
@@ -386,7 +406,7 @@ export default class UpgradeSystem {
           scaleX: 1,
           scaleY: 1,
           duration: 120,
-          ease: "Linear"
+          ease: "Linear",
         });
         card.setStrokeStyle(4, 0x00eaff);
       });
@@ -405,7 +425,10 @@ export default class UpgradeSystem {
   applyUpgrade(upgrade) {
     const player = this.scene.player;
     if (!player) {
-      console.warn("UpgradeSystem: player not found when applying upgrade", upgrade.id);
+      console.warn(
+        "UpgradeSystem: player not found when applying upgrade",
+        upgrade.id
+      );
       return;
     }
 
@@ -430,18 +453,25 @@ export default class UpgradeSystem {
           player.xpGain = player.stats.get("xpGain");
         }
       }
-    } catch (e) { /* ignore small sync errors */ }
+    } catch (e) {
+    }
 
     this.closeMenu();
   }
 
   closeMenu() {
+    const player = this.scene.player;
+
     if (this.menuContainer) this.menuContainer.destroy();
     this.menuContainer = null;
     this.isMenuOpen = false;
 
     this.scene.physics.resume();
-    if (this.scene.weaponLoopEvent)
-      this.scene.weaponLoopEvent.paused = false;
+    if (this.scene.weaponLoopEvent) this.scene.weaponLoopEvent.paused = false;
+
+    // DESBLOQUEIA O JOGADOR AQUI, NÃO NO OPEN
+    if (player && typeof player.unlockInput === "function") {
+      player.unlockInput();
+    }
   }
 }

@@ -1,5 +1,5 @@
-import StatsPlayer from "../Player/StatsPlayer.js"
-import DamagePlayer from "../Player/DamagePlayer.js";
+import StatsPlayer from "./StatsPlayer.js";
+import DamagePlayer from "./DamagePlayer.js";
 
 export default class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, texture) {
@@ -11,30 +11,26 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.stats = new StatsPlayer(this);
     this.damageSystem = new DamagePlayer(this, this.stats);
 
-    // SPEED base: usa multiplicador do stats de forma segura
-    const baseSpeed = 200;
-    const msMult = (typeof this.stats.get === "function") ? this.stats.get("moveSpeedMultiplier") : this.stats.moveSpeedMultiplier;
-    this.speed = (msMult && typeof msMult === "number") ? baseSpeed * msMult : baseSpeed;
+    // SISTEMA DE VELOCIDADE
+    this.speedBase = 200; // velocidade real centralizada
+    this.speedModifiers = {}; // {nomeDoEfeito: multiplicador}
+    this.speed = this.speedBase;
 
-    // SISTEMAS DE STATUS BASE
+    // STATUS BASE
     this.level = 1;
     this.xp = 0;
     this.xpToNext = 100;
 
-    // Vida base
     this.maxHP = this.stats.maxHP || 100;
     this.currentHP = this.maxHP;
 
-    // Dano base
     this.baseDamage = this.stats.baseDamage || 5;
 
-    // Velocidade
-    this.speed = this.stats.moveSpeed || 200;
+    this.magnetRadius =
+      (typeof this.stats.get === "function"
+        ? this.stats.get("pickupRadius") || 1
+        : this.stats.pickupRadius || 1) * 100;
 
-    // Raio do magnetismo
-    this.magnetRadius = (typeof this.stats.get === "function" ? (this.stats.get("pickupRadius") || 1) : (this.stats.pickupRadius || 1)) * 100;
-
-    // Multiplicador de XP
     this.xpGain = this.stats.xpGain || 1;
 
     // INPUTS
@@ -43,23 +39,74 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       left: "A",
       down: "S",
       right: "D",
-      dash: "SPACE"
+      dash: "SPACE",
     });
 
-    // MOVIMENTO
-    this.speed = this.stats.movementSpeed;
+    // MOVIMENTO / DASH
     this.dashing = false;
     this.dashCooldown = false;
 
-    // CONFIGURAÇÕES DO CORPO
     this.setCollideWorldBounds(true);
-
-    // ANIMAÇÕES E CONTROLE
     this.facing = "down";
+
+    // TRAVAR/DESTRAVAR ATAQUE
+    this.canAttack = true;
+    this.inputLocked = false;
   }
 
-  // ============   MOVIMENTO DO PLAYER   =============
+ 
+  // SISTEMA PRINCIPAL
+
+  addSpeedModifier(name, mult) {
+    this.speedModifiers[name] = mult;
+    this.recalculateSpeed();
+  }
+
+  removeSpeedModifier(name) {
+    delete this.speedModifiers[name];
+    this.recalculateSpeed();
+  }
+
+  recalculateSpeed() {
+    let finalMult = 1;
+
+    for (const key in this.speedModifiers) {
+      finalMult *= this.speedModifiers[key];
+    }
+
+    this.speed = this.speedBase * finalMult;
+  }
+
+  setCanAttack(value) {
+    this.canAttack = value;
+
+    // trava dash também quando carregando a bomba
+    if (!value) {
+      this.dashing = false;
+      this.dashCooldown = true;
+    } else {
+      // libera novamente após final da bomba
+      this.dashCooldown = false;
+    }
+  }
+
+  lockInput() {
+    this.inputLocked = true;
+    this.setVelocity(0, 0);
+  }
+
+  unlockInput() {
+    this.inputLocked = false;
+  }
+
+  // MOVIMENTO DO PLAYER
   update(cursors) {
+
+    if (this.inputLocked) {
+      this.setVelocity(0, 0);
+      return;
+    }
+    
     this.handleMovement();
     this.handleDash();
 
@@ -101,8 +148,10 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     return vy > 0 ? "down" : "up";
   }
 
-  // ============   SISTEMA DE DASH   =================
+  // SISTEMA DE DASH
   handleDash() {
+    if (!this.canAttack) return;
+
     if (this.keys.dash.isDown && !this.dashing && !this.dashCooldown) {
       this.dashing = true;
       this.dashCooldown = true;
@@ -117,44 +166,36 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  // Funções de progressão de nível
+  // SISTEMA DE XP / LEVEL
   gainXP(amount) {
-    // usa multiplicador xpGain caso exista
     const multiplier = this.xpGain ?? 1;
     const final = Math.floor(amount * multiplier);
     this.xp += final;
 
-    // atualiza HUD
     this.scene?.updateXpBar?.();
 
-    // loop de level up caso receba muito XP
     while (this.xp >= this.xpToNext) {
       this.levelUp();
     }
   }
-
 
   levelUp() {
     this.level++;
     this.xp -= this.xpToNext;
     this.xpToNext = Math.floor(this.xpToNext * 1.25);
 
-    // CORREÇÃO: nome correto é maxHP (não maxHp)
     this.maxHP += 10;
     this.currentHP = this.maxHP;
     this.baseDamage += 1;
 
-    // Atualiza HUD quando upar (se existir)
     this.scene?.updateHealthBar?.();
     this.scene?.updateXpBar?.();
 
-    // Abre menu de upgrades (se existir sistema)
-    if (this.scene?.upgradeSystem && typeof this.scene.upgradeSystem.openUpgradeMenu === "function") {
+    if (this.scene?.upgradeSystem?.openUpgradeMenu)
       this.scene.upgradeSystem.openUpgradeMenu(this);
-    }
   }
 
-  // ============   SISTEMA DE DANO   =================
+  // SISTEMA DE DANO
   takeDamage(amount) {
     this.damageSystem.takeDamage(amount);
   }
@@ -167,7 +208,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.damageSystem.addShield(amount);
   }
 
-  // ============   MORTE DO PLAYER   =================
+  // MORTE DO PLAYER
   die() {
     this.setTint(0xff0000);
     this.setVelocity(0, 0);
