@@ -1,156 +1,83 @@
 import Enemy from "../entities/Enemy/enemy.js";
 
 export default class SpawnDirector {
-  constructor(scene) {
-    this.scene = scene;
-    this.player = null;
+    constructor(scene) {
+        this.scene = scene;
+        this.player = null;
 
-    // -------------------------
-    // TIMER DA RUN
-    this.matchDuration = 10 * 60 * 1000; // 10 minutos
-    this.matchStartTime = scene.time.now;
+        this.spawnCooldown = 0;
+        this.spawnInterval = 1200;
+        this.maxEnemies = 35;
+        this.spawnRadius = 450;
 
-    // -------------------------
-    // ORDA
-    this.hordeActive = false;
-    this.hordeDuration = 40 * 1000; // 40s
-    this.nextHordeTime = 4 * 60 * 1000; // primeira aos 4 min
-    this.hordeInterval = 2 * 60 * 1000;
+        this.difficultyMultiplier = 1;
+        this.lastLevel = 1;
 
-    // -------------------------
-    // SPAWN
-    this.spawnCooldown = 0;
+        this.enemyPool = ["normal"];
 
-    this.normalSpawnRate = 0.7; // inimigos por segundo
-    this.hordeSpawnRate = 1.3;  // durante orda (ajustável)
-
-    this.maxEnemies = 25;
-    this.spawnRadius = 450;
-
-    // -------------------------
-    // TIPOS DE INIMIGO
-    this.enemyPool = ["normal"];
-
-    this.unlocks = [
-      { time: 2 * 60 * 1000, type: "fast" },
-      { time: 4 * 60 * 1000, type: "tank" },
-      { time: 6 * 60 * 1000, type: "shooter" },
-      { time: 8 * 60 * 1000, type: "elite" },
-    ];
-
-    this.maxShooters = 2;
-  }
+        this.unlocks = [
+            { level: 3, type: "fast" },
+            { level: 5, type: "tank" },
+            { level: 8, type: "shooter" },
+            { level: 12, type: "elite" }
+        ];
+    }
 
   update(time, delta) {
     if (!this.scene.player) return;
     if (!this.player) this.player = this.scene.player;
 
-    const elapsed = time - this.matchStartTime;
+        this.updateDifficulty();
 
-    this.updateEnemyUnlocks(elapsed);
-    this.updateHordeState(elapsed);
+        const count = this.scene.enemies.getChildren().length;
+        if (count >= this.maxEnemies) return;
 
-    this.spawnCooldown -= delta;
+        this.spawnCooldown -= delta;
 
-    const spawnRate = this.hordeActive
-      ? this.hordeSpawnRate
-      : this.normalSpawnRate;
-
-    const interval = 1000 / spawnRate;
-
-    if (this.spawnCooldown <= 0) {
-      this.trySpawn(elapsed);
-      this.spawnCooldown = interval;
-    }
-  }
-
-  // -------------------------
-  // CONTROLE DAS ORDAS
-  updateHordeState(elapsed) {
-    if (!this.hordeActive && elapsed >= this.nextHordeTime) {
-      this.startHorde();
+        if (this.spawnCooldown <= 0) {
+            this.spawnEnemy();
+            this.spawnCooldown = this.spawnInterval / this.difficultyMultiplier;
+        }
     }
 
-    if (
-      this.hordeActive &&
-      elapsed >= this.hordeEndTime
-    ) {
-      this.endHorde();
-    }
-  }
+    updateDifficulty() {
+        const level = this.scene.player.level || 1;
 
-  startHorde() {
-    this.hordeActive = true;
-    this.hordeEndTime = this.nextHordeTime + this.hordeDuration;
-    this.nextHordeTime += this.hordeInterval;
+        if (level !== this.lastLevel) {
+            this.difficultyMultiplier = 1 + level * 0.10;
 
-    this.scene.events.emit("hordeWarning");
+            this.unlocks.forEach(u => {
+                if (level >= u.level && !this.enemyPool.includes(u.type)) {
+                    this.enemyPool.push(u.type);
+                    console.log(`Novo inimigo desbloqueado: ${u.type}`);
+                }
+            });
 
-    // aqui depois entra o aviso visual:
-    // this.scene.events.emit("hordeStart");
-  }
+            this.maxEnemies = 25 + Math.floor(level * 2);
 
-  endHorde() {
-    this.hordeActive = false;
-
-    // this.scene.events.emit("hordeEnd");
-  }
-
-  // -------------------------
-  // UNLOCK DE INIMIGOS PELO TEMPO
-  updateEnemyUnlocks(elapsed) {
-    this.unlocks.forEach((u) => {
-      if (elapsed >= u.time && !this.enemyPool.includes(u.type)) {
-        this.enemyPool.push(u.type);
-        console.log(`Novo inimigo desbloqueado: ${u.type}`);
-      }
-    });
-  }
-
-  // -------------------------
-  // SPAWN
-  trySpawn(elapsed) {
-    const count = this.scene.enemies.getChildren().length;
-    if (count >= this.maxEnemies) return;
-
-    this.spawnEnemy(elapsed);
-  }
-
-  spawnEnemy(elapsed) {
-    let type = Phaser.Utils.Array.GetRandom(this.enemyPool);
-
-    if (type === "shooter") {
-      const shooterCount = this.scene.enemies
-        .getChildren()
-        .filter((e) => e.aiType === "shooter").length;
-
-      if (shooterCount >= this.maxShooters) {
-        type = "normal";
-      }
+            this.lastLevel = level;
+        }
     }
 
-    const pos = this.getSpawnPosition();
-    if (!pos) return;
+    spawnEnemy() {
+        const type = Phaser.Utils.Array.GetRandom(this.enemyPool);
+        const pos = this.getSpawnPosition();
+        if (!pos) return;
 
-    const enemy = new Enemy(this.scene, pos.x, pos.y, type);
-    this.scene.enemies.add(enemy);
+        const enemy = this.scene.spawnEnemy(type, pos.x, pos.y);
 
-    // -------------------------
-    // ESCALA SOMENTE VIDA (POR TEMPO)
-    const timeFactor = elapsed / this.matchDuration;
+        const lvl = this.scene.player.level || 1;
 
-    enemy.maxHP = Math.floor(enemy.maxHP * (1 + timeFactor * 1.2));
-    enemy.currentHP = enemy.maxHP;
+        enemy.maxHP = Math.floor(enemy.maxHP * (1 + lvl * 0.05));
+        enemy.speed = Math.floor(enemy.speed * (1 + lvl * 0.03));
+        enemy.damage = Math.floor(enemy.damage * (1 + lvl * 0.04));
 
-    // velocidade NÃO escala
-    return enemy;
-  }
+        enemy.hp = enemy.maxHP;
+    }
 
-  // -------------------------
-  // POSIÇÃO DE SPAWN
-  getSpawnPosition() {
-    const px = this.scene.player.x;
-    const py = this.scene.player.y;
+    getSpawnPosition() {
+        const px = this.scene.player.x;
+        const py = this.scene.player.y;
 
     let attempts = 30;
 

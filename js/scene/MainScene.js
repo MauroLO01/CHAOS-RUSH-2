@@ -122,55 +122,6 @@ export default class MainScene extends Phaser.Scene {
     this.events.on("enemyKilled", (enemy) => {
       this.spawnXPOrb(enemy.x, enemy.y, enemy.xpValue);
     });
-
-    this.events.on("enemyKilled", (enemy) => {
-      if (this.passiveSystem && typeof this.passiveSystem.onEnemyKilled === "function") {
-        this.passiveSystem.onEnemyKilled(enemy);
-      }
-    });
-
-    // -------------------------
-    // TIMER DA RUN (UI)
-    this.matchDuration = 10 * 60 * 1000;
-    this.matchStartTime = this.time.now;
-
-    this.timerText = this.add.text(
-      this.scale.width / 2,
-      10,
-      "10:00",
-      {
-        fontFamily: "Arial",
-        fontSize: "24px",
-        color: "#ffffff",
-        stroke: "#000000",
-        strokeThickness: 4,
-      }
-    ).setOrigin(0.5, 0).setScrollFactor(0).setDepth(100);
-
-    // -------------------------
-    // TEXTO DE ORDA (invisível inicialmente)
-    this.hordeText = this.add.text(
-      this.scale.width / 2,
-      this.scale.height / 2,
-      "ORDA SE APROXIMA",
-      {
-        fontFamily: "Arial Black",
-        fontSize: "48px",
-        color: "#ff3333",
-        stroke: "#000000",
-        strokeThickness: 6,
-      }
-    )
-      .setOrigin(0.5)
-      .setAlpha(0)
-      .setDepth(200)
-      .setScrollFactor(0);
-
-    // escuta evento
-    this.events.on("hordeWarning", () => {
-      this.showHordeWarning();
-    });
-
   }
 
   // cria/encontra player e inicia sistemas que precisam dele
