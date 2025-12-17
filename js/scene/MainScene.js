@@ -1,9 +1,9 @@
 import Player from "../entities/Player/player.js";
-import Enemy from "../entities/enemy.js";
+import Enemy from "../entities/Enemy/enemy.js";
 import XPOrb from "../entities/XPOrb.js";
 import UpgradeSystem from "../systems/UpgradeSystem.js";
 import ClassSystem from "../systems/ClassSystems.js";
-import PassiveSystem from "../systems/PassiveSystem.js";
+import PassiveSystem from "../systems/PassiveSystem/PassiveSystem.js";
 import WeaponSystem from "../systems/WeaponSystem.js";
 import SpawnDirector from "../Director/SpawnDirector.js";
 
@@ -122,6 +122,55 @@ export default class MainScene extends Phaser.Scene {
     this.events.on("enemyKilled", (enemy) => {
       this.spawnXPOrb(enemy.x, enemy.y, enemy.xpValue);
     });
+
+    this.events.on("enemyKilled", (enemy) => {
+      if (this.passiveSystem && typeof this.passiveSystem.onEnemyKilled === "function") {
+        this.passiveSystem.onEnemyKilled(enemy);
+      }
+    });
+
+    // -------------------------
+    // TIMER DA RUN (UI)
+    this.matchDuration = 10 * 60 * 1000;
+    this.matchStartTime = this.time.now;
+
+    this.timerText = this.add.text(
+      this.scale.width / 2,
+      10,
+      "10:00",
+      {
+        fontFamily: "Arial",
+        fontSize: "24px",
+        color: "#ffffff",
+        stroke: "#000000",
+        strokeThickness: 4,
+      }
+    ).setOrigin(0.5, 0).setScrollFactor(0).setDepth(100);
+
+    // -------------------------
+    // TEXTO DE ORDA (invisível inicialmente)
+    this.hordeText = this.add.text(
+      this.scale.width / 2,
+      this.scale.height / 2,
+      "ORDA SE APROXIMA",
+      {
+        fontFamily: "Arial Black",
+        fontSize: "48px",
+        color: "#ff3333",
+        stroke: "#000000",
+        strokeThickness: 6,
+      }
+    )
+      .setOrigin(0.5)
+      .setAlpha(0)
+      .setDepth(200)
+      .setScrollFactor(0);
+
+    // escuta evento
+    this.events.on("hordeWarning", () => {
+      this.showHordeWarning();
+    });
+
   }
 
   // cria/encontra player e inicia sistemas que precisam dele
@@ -146,17 +195,7 @@ export default class MainScene extends Phaser.Scene {
     this.weaponSystem = new WeaponSystem(this, this.player);
     // cria passiveSystem COM player aqui (apenas uma vez)
     this.passiveSystem = new PassiveSystem(this, this.player);
-    this.passiveSystem.activateClassAbilities(selectedClass);
-
-    // ativa as habilidades passivas da classe selecionada
-    const normalizedName = (selectedClass.name || "")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z]/g, "");
-
-    if (this.passiveSystem.activateClassAbilities)
-      this.passiveSystem.activateClassAbilities()
+    this.passiveSystem.activateClassAbilities(selectedClass.name);
 
     if (this.classSystem.menuBackground) this.classSystem.menuBackground.destroy();
     if (this.classSystem.classButtons)
@@ -233,6 +272,18 @@ export default class MainScene extends Phaser.Scene {
     this.updateXpBar();
 
     // Observação: não duplicamos lógica de SPACE no update — o listener em create() já faz o trabalho
+
+    const elapsed = time - this.matchStartTime;
+    const remaining = Math.max(0, this.matchDuration - elapsed);
+
+    const minutes = Math.floor(remaining / 60000);
+    const seconds = Math.floor((remaining % 60000) / 1000);
+
+    const mm = minutes.toString().padStart(2, "0");
+    const ss = seconds.toString().padStart(2, "0");
+
+    this.timerText.setText(`${mm}:${ss}`);
+
   }
 
   // resto das funções (copie as suas originais, mantive apenas assinaturas)
@@ -353,4 +404,28 @@ export default class MainScene extends Phaser.Scene {
       onComplete: () => xpText.destroy(),
     });
   }
+
+  showHordeWarning() {
+    this.hordeText.setAlpha(1);
+    this.hordeText.setScale(0.8);
+
+    this.tweens.add({
+      targets: this.hordeText,
+      scale: 1.1,
+      duration: 300,
+      yoyo: true,
+      repeat: 2,
+    });
+
+    this.tweens.add({
+      targets: this.hordeText,
+      alpha: 0,
+      delay: 2000,
+      duration: 500,
+    });
+
+    // opcional: screen shake leve
+    this.cameras.main.shake(200, 0.005);
+  }
+
 }
