@@ -1,107 +1,134 @@
-import EnemyBullet from "./EnemyBullet.js";
+const resolveAIType = (type) => {
+  if (!type) return "chaser";
+  if (type.startsWith("shooter")) return "shooter";
+  if (type.startsWith("wanderer")) return "wanderer";
+  if (type.startsWith("tank")) return "chaser";
+  if (type.startsWith("fast")) return "chaser";
+  return "chaser";
+};
+
+const resolveVariant = (type) => {
+  if (!type) return "chaser";
+  if (type.startsWith("shooter")) return "shooter";
+  if (type.startsWith("wanderer")) return "wanderer";
+  if (type.startsWith("tank")) return "tank";
+  if (type.startsWith("fast")) return "fast";
+  if (type.startsWith("elite")) return "elite";
+  return "chaser";
+};
+
 
 export default class Enemy extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, type = "chaser") {
     super(scene, x, y, "enemy");
 
     this.scene = scene;
-    this.type = type;
+    this.variant = resolveVariant(type);
+    this.aiType = resolveAIType(type);
+    this.applyTint();
 
-    this.target = null;
 
-    // ----- Escalonamento Dinâmico -----
+    // alvo padrão
+    this.target = scene.player ?? null;
+
+    // -------------------------
+    // ESCALONAMENTO
     const playerLevel = scene.player?.level ?? 1;
     const gameLevel = scene.level ?? scene.wave ?? 1;
-
     const scaleFactor = 1 + playerLevel * 0.15 + gameLevel * 0.2;
 
-    // ----- atributos base por tipo -----
+    // -------------------------
+    // STATS BASE
     const baseStats = {
-      chaser: { hp: 20, speed: 80, tint: 0xff3333, xp: 10 },
-      wanderer: { hp: 100, speed: 60, tint: 0x33ff33, xp: 12 },
-      shooter: { hp: 80, speed: 40, tint: 0xff9900, xp: 15 },
+      chaser: { hp: 20, speed: 80, damage: 5, tint: 0xff3333, xp: 10 },
+      wanderer: { hp: 100, speed: 60, damage: 8, tint: 0x33ff33, xp: 12 },
+      shooter: { hp: 80, speed: 40, damage: 10, tint: 0xff9900, xp: 15 },
     };
-
-    // mapear tipos que vêm do SpawnDirector
-    const typeMap = {
-      normal: "chaser",
-      fast: "chaser",
-      tank: "chaser",
-      elite: "chaser",
-      shooter: "shooter",
-      wanderer: "wanderer",
-    };
-
-    const effectiveType = typeMap[this.type] || this.type;
-    this.aiType = effectiveType;
 
     const stats = baseStats[this.aiType] ?? baseStats.chaser;
 
-    this.speed = stats.speed * scaleFactor || 60;
-    this.maxHP = Math.round(stats.hp * scaleFactor || 20);
+    // -------------------------
+    // ATRIBUTOS
+    this.speed = Math.round(stats.speed * scaleFactor);
+    this.maxHP = Math.round(stats.hp * scaleFactor);
     this.currentHP = this.maxHP;
-    this.xpValue = Math.round(stats.xp * scaleFactor || 10);
+    this.damage = Math.round(stats.damage * scaleFactor);
+    this.xpValue = Math.round(stats.xp * scaleFactor);
 
     this.isDead = false;
 
+    // -------------------------
+    // PHASER SETUP
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
+    this.setDepth(5);
     this.setCollideWorldBounds(false);
+    this.body.setAllowGravity(false);
     this.setSize(18, 18);
     this.setOffset(1, 1);
     this.setTint(stats.tint);
 
-    // Wanderer
+    // -------------------------
+    // COMPORTAMENTO
     this.wanderTimer = 0;
 
-    // Shooter
-    this.shootCooldown = 1800; // NERF: antes era 1000
+    this.shootCooldown = 1800;
     this.lastShotTime = 0;
 
-    // strafing
     this.strafeTimer = 0;
     this.strafeDir = 1;
 
-    // damage
-    this.damage = this.damage || 5;
+    console.log("Enemy spawn:", {
+      rawType: type,
+      variant: this.variant,
+      aiType: this.aiType
+    });
+
   }
 
+  // =====================================================
   update(time, delta) {
-    if (!this.active || this.isDead) return;
+    if (!this.active || this.isDead) {
+      this.setVelocity(0, 0);
+      return;
+    }
 
     if (!this.target && this.scene.player) {
       this.target = this.scene.player;
     }
 
-    const target = this.target;
-    if (!target || !target.active) return;
+    if (!this.target || !this.target.active) {
+      this.setVelocity(0, 0);
+      return;
+    }
 
     switch (this.aiType) {
-      case "chaser":
-        this.updateChaser(target);
-        break;
       case "wanderer":
         this.updateWanderer(delta);
         break;
       case "shooter":
-        this.updateShooter(time, target, delta);
+        this.updateShooter(time, this.target, delta);
         break;
+      case "chaser":
       default:
-        this.updateChaser(target);
+        this.updateChaser(this.target);
         break;
     }
   }
 
-  // -------------------------
-  // TIPOS DE COMPORTAMENTO
+  setTarget(target) {
+    this.target = target;
+  }
 
+  // =====================================================
   updateChaser(target) {
     const dx = target.x - this.x;
     const dy = target.y - this.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
+    const distSq = dx * dx + dy * dy;
 
-    if (dist > 0) {
+    if (distSq > 1) {
+      const dist = Math.sqrt(distSq);
       this.setVelocity((dx / dist) * this.speed, (dy / dist) * this.speed);
     } else {
       this.setVelocity(0, 0);
@@ -110,6 +137,22 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   updateWanderer(delta) {
     this.wanderTimer -= delta;
+
+    if (this.target) {
+      const dx = this.target.x - this.x;
+      const dy = this.target.y - this.y;
+      const distSq = dx * dx + dy * dy;
+
+      if (distSq < 120 * 120) {
+        const dist = Math.sqrt(distSq);
+        this.setVelocity(
+          (dx / dist) * this.speed * 0.4,
+          (dy / dist) * this.speed * 0.4
+        );
+        return;
+      }
+    }
+
     if (this.wanderTimer <= 0) {
       const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
       this.setVelocity(
@@ -120,153 +163,108 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  // SHOOTER FINAL MOD
+
   updateShooter(time, target, delta) {
     const dx = target.x - this.x;
     const dy = target.y - this.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const angleToPlayer = Math.atan2(dy, dx);
+    const angle = Math.atan2(dy, dx);
 
-    // NERF: alcance reduzido
     const idealMin = 120;
     const idealMax = 250;
 
     if (dist > idealMax) {
-      this.setVelocity(
-        Math.cos(angleToPlayer) * this.speed,
-        Math.sin(angleToPlayer) * this.speed
-      );
-    } else if (dist < idealMin) {
-      this.setVelocity(
-        -Math.cos(angleToPlayer) * this.speed,
-        -Math.sin(angleToPlayer) * this.speed
-      );
-    } else {
+      this.setVelocity(Math.cos(angle) * this.speed, Math.sin(angle) * this.speed);
+    }
+    else if (dist < idealMin) {
+      this.setVelocity(-Math.cos(angle) * this.speed, -Math.sin(angle) * this.speed);
+    }
+    else {
       this.setVelocity(0, 0);
-      this.strafeTimer -= delta;
 
+      this.strafeTimer -= delta;
       if (this.strafeTimer <= 0) {
         this.strafeDir = Phaser.Math.Between(0, 1) ? 1 : -1;
         this.strafeTimer = Phaser.Math.Between(400, 1000);
       }
 
-      const perpAngle = angleToPlayer + (Math.PI / 2) * this.strafeDir;
-      const strafeSpeed = Math.max(30, this.speed * 0.6);
-
+      const perp = angle + Math.PI / 2 * this.strafeDir;
       this.setVelocity(
-        Math.cos(perpAngle) * strafeSpeed,
-        Math.sin(perpAngle) * strafeSpeed
+        Math.cos(perp) * this.speed * 0.6,
+        Math.sin(perp) * this.speed * 0.6
       );
-    }
 
-    const now = this.scene.time?.now ?? time;
-
-    if (
-      dist <= idealMax + 30 &&
-      now - this.lastShotTime >= this.shootCooldown
-    ) {
-      this.lastShotTime = now;
-
-      // ALERTA ANTES DO TIRO
-      this.preShootWarning(target);
+      const now = time;
+      if (now - this.lastShotTime >= this.shootCooldown) {
+        this.lastShotTime = now;
+        this.preShootWarning(target);
+      }
     }
   }
 
-  // -------------------------
-  // ANIMAÇÃO DE ALERTA + ERRO DE MIRA
+
+  // =====================================================
   preShootWarning(target) {
-    // efeito de alerta
+    // aviso visual de disparo
     this.setTint(0xff3333);
 
     this.scene.time.delayedCall(120, () => {
       if (!this.active || this.isDead) return;
 
-      const tints = {
-        chaser: 0xff3333,
-        wanderer: 0x33ff33,
-        shooter: 0xff9900,
-      };
-      this.setTint(tints[this.aiType] || 0xffffff);
+      // restaura a cor correta da variante
+      this.applyTint();
 
-      // erro proposital de mira
-      const aimErrorX = Phaser.Math.Between(-40, 40);
-      const aimErrorY = Phaser.Math.Between(-40, 40);
+      const errX = Phaser.Math.Between(-40, 40);
+      const errY = Phaser.Math.Between(-40, 40);
 
-      this.shootAt(target, aimErrorX, aimErrorY);
+      this.shootAt(target, errX, errY);
     });
   }
 
-  // -------------------------
-  // TIRO COM ERRO E VELOCIDADE REDUZIDA
+
   shootAt(target, errX = 0, errY = 0) {
-    const aimX = target.x + errX;
-    const aimY = target.y + errY;
+    if (!target?.active) return;
 
-    // sistema centralizado de projeteis
-    if (
-      this.scene?.enemyProjectiles &&
-      typeof this.scene.enemyProjectiles.fireProjectile === "function"
-    ) {
-      try {
-        this.scene.enemyProjectiles.fireProjectile(
-          this.x,
-          this.y,
-          aimX,
-          aimY,
-          {
-            damage: this.damage || 8,
-            speed: 280, // NERF: projétil mais lento
-          }
-        );
-        return;
-      } catch (e) {
-        console.warn("enemyProjectiles.fireProjectile falhou, fallback usado.", e);
-      }
-    }
+    const proj = this.scene.enemyBullets.get(this.x, this.y, "bullet");
+    if (!proj) return;
 
-    // fallback
-    const scene = this.scene;
-    const proj = scene.physics.add.sprite(this.x, this.y, null).setDepth(6);
-    proj.setDisplaySize(6, 6);
+    proj.setActive(true);
+    proj.setVisible(true);
     proj.body.setAllowGravity(false);
 
-    const speed = 280; // NERF: antes 420
-    scene.physics.moveTo(proj, aimX, aimY, speed);
+    this.scene.physics.moveTo(
+      proj,
+      target.x + errX,
+      target.y + errY,
+      280
+    );
 
-    // colisão
-    const overlap = scene.physics.add.overlap(proj, target, (p, pl) => {
-      try {
-        if (typeof pl.takeDamage === "function") {
-          pl.takeDamage(this.damage || 8);
-        } else if (pl.currentHP !== undefined) {
-          pl.currentHP -= this.damage || 8;
-        }
-      } catch (e) { }
+    const cleanup = () => {
+      if (!proj.active) return;
+      proj.destroy();
+      if (hit) hit.destroy();
+    };
 
-      try {
-        overlap.destroy();
-      } catch (e) { }
+    const hit = this.scene.physics.add.overlap(proj, target, cleanup);
 
-      try {
-        p.destroy();
-      } catch (e) { }
-    });
-
-    scene.time.delayedCall(2200, () => {
-      try {
-        overlap.destroy();
-      } catch (e) { }
-      try {
-        proj.destroy();
-      } catch (e) { }
-    });
+    this.scene.time.delayedCall(2200, cleanup);
   }
 
-  // -------------------------
-  // COMBATE
+
+  // =====================================================
+
+  applyTint() {
+    const tints = {
+      chaser: 0xff3333,
+      wanderer: 0x33ff33,
+      shooter: 0xff9900,
+    };
+
+    this.setTint(tints[this.aiType] ?? 0xffffff);
+  }
 
   takeDamage(amount) {
-    if (!this.active || this.isDead) return;
+    if (this.isDead) return;
 
     this.currentHP -= amount;
     this.flashDamage();
@@ -278,27 +276,18 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   flashDamage() {
     this.setTint(0xffffff);
+
     this.scene.time.delayedCall(100, () => {
-      if (this && this.active && !this.isDead) {
-        const tints = {
-          chaser: 0xff3333,
-          wanderer: 0x33ff33,
-          shooter: 0xff9900,
-        };
-        this.setTint(tints[this.type] ?? tints[this.aiType] ?? 0xffffff);
+      if (!this.isDead && this.active) {
+        this.applyTint();
       }
     });
-  }
-
-  setTarget(target) {
-    this.target = target;
   }
 
   die() {
     if (this.isDead) return;
     this.isDead = true;
 
-    this.emit("die", this.x, this.y, this.xpValue);
     this.scene.events.emit("enemyKilled", this);
 
     this.scene.tweens.add({
@@ -306,9 +295,7 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
       alpha: 0,
       scale: 0,
       duration: 200,
-      onComplete: () => {
-        if (this && this.destroy) this.destroy(true);
-      },
+      onComplete: () => this.destroy(),
     });
   }
 }

@@ -41,7 +41,7 @@ export default class MainScene extends Phaser.Scene {
   }
 
   create() {
-    // inputs
+    // Inputs
     this.cursors = this.input.keyboard.addKeys("W,S,A,D");
     this.cameras.main.setBackgroundColor("#202733");
 
@@ -51,78 +51,97 @@ export default class MainScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, this.worldWidth, this.worldHeight);
 
     // Grupos
-    this.enemies = this.physics.add.group();
-    this.xpOrbs = this.physics.add.group({ classType: XPOrb, runChildUpdate: true });
+    this.enemies = this.physics.add.group({ runChildUpdate: true });
+    this.xpOrbs = this.physics.add.group({
+      classType: XPOrb,
+      runChildUpdate: true
+    });
     this.enemiesInAura = new Set();
 
-    // Sistemas (instancie alguns que NÃO precisam de player)
+    // Sistemas (sem player)
     this.upgradeSystem = new UpgradeSystem(this);
     this.classSystem = new ClassSystem(this);
-    this.weaponSystem = null; // criado no startGame
-    // NOTE: NÃO criar PassiveSystem aqui — será criado em startGame com player
+    this.weaponSystem = null;
+    this.passiveSystem = null;
 
-    // UI
-    this.passiveBarBg = this.add.rectangle(100, 70, 200, 10, 0x222222).setOrigin(0).setScrollFactor(0);
-    this.passiveBar = this.add.rectangle(100, 70, 0, 10, 0x00ff88).setOrigin(0).setScrollFactor(0);
+    // Spawn Director
+    this.SpawnDirector = new SpawnDirector(this);
+
+    // ===== UI =====
+    this.passiveBarBg = this.add.rectangle(100, 70, 200, 10, 0x222222)
+      .setOrigin(0)
+      .setScrollFactor(0)
+      .setDepth(1000);
+
+    this.passiveBar = this.add.rectangle(100, 70, 0, 10, 0x00ff88)
+      .setOrigin(0)
+      .setScrollFactor(0)
+      .setDepth(1001);
+
     this.passiveText = this.add.text(310, 65, "Passiva: 0%", {
       fontSize: "14px",
       fill: "#00ffcc"
-    }).setScrollFactor(0);
+    })
+      .setScrollFactor(0)
+      .setDepth(1001);
 
-    this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    // ===== TIMER =====
+    this.matchDuration = 10 * 60 * 1000; // 10 minutos
+    this.matchStartTime = this.time.now;
 
-    // Diretor de Spawn
-    this.SpawnDirector = new SpawnDirector(this);
+    this.timerText = this.add.text(16, 16, "10:00", {
+      fontSize: "18px",
+      fill: "#ffffff",
+      stroke: "#000",
+      strokeThickness: 3
+    })
+      .setScrollFactor(0)
+      .setDepth(1000);
 
-    // Listener seguro para o SPACE.
-    // O listener existe já (não depende de passiveSystem existir),
-    // mas só chama o sistema quando ele estiver presente e o player também.
+    // ===== INPUT =====
+    this.spaceKey = this.input.keyboard.addKey(
+      Phaser.Input.Keyboard.KeyCodes.SPACE
+    );
+
     this.input.keyboard.on("keydown-SPACE", () => {
       if (!this.passiveSystem || !this.player) return;
 
-      // tenta obter o nome da classe do player (consistente com seu fluxo)
-      const name = (this.player.currentClass || this.player.className || "").toString().toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      const name = (this.player.currentClass || this.player.className || "")
+        .toString()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
         .replace(/[^a-z]/g, "");
 
-      // chama o método correto (mantenha nomes compatíveis com PassiveSystem)
       if (name.includes("alquimista")) {
-        // Alquimista: chamada imediata que dispara os frascos (activatePassiva)
-        if (typeof this.passiveSystem.activatePassiva === "function") {
-          this.passiveSystem.activatePassiva();
-        }
+        this.passiveSystem.activatePassiva?.();
       } else if (name.includes("coveiro")) {
-        // Coveiro: ativa ascensão (passa player se o método precisar)
-        if (typeof this.passiveSystem.activateAscension === "function") {
-          // alguns códigos usam activateAscension(player)
-          try {
-            this.passiveSystem.activateAscension(this.player);
-          } catch (e) {
-            // fallback: tenta sem params
-            try { this.passiveSystem.activateAscension(); } catch (er) { }
-          }
-        }
+        this.passiveSystem.activateAscension?.(this.player);
       } else if (name.includes("sentinela")) {
-        if (typeof this.passiveSystem.activateSentinela === "function") {
-          this.passiveSystem.activateSentinela();
-        }
-      } else {
-        // Se quiser coisas padrão para outras classes, trate aqui
+        this.passiveSystem.activateSentinela?.();
       }
     });
 
-    // Se já veio com classe selecionada, iniciar — mantém sua lógica antiga
+    // Start
     if (this.selectedClass) {
       this.startGame(this.selectedClass);
     } else {
       this.scene.start("MenuScene");
     }
 
-    // evento global de spawn XP orbs a partir de inimigos mortos
-    this.events.on("enemyKilled", (enemy) => {
+    // XP drop
+    this.events.on("enemyKilled", enemy => {
+      if (!enemy) return;
       this.spawnXPOrb(enemy.x, enemy.y, enemy.xpValue);
     });
+
+    this.enemyBullets = this.physics.add.group({
+      classType: Phaser.Physics.Arcade.Image,
+      runChildUpdate: false
+    });
+
   }
+
 
   // cria/encontra player e inicia sistemas que precisam dele
   startGame(selectedClass) {
@@ -205,24 +224,28 @@ export default class MainScene extends Phaser.Scene {
   update(time, delta) {
     if (!this.isGameStarted || !this.player) return;
 
-    if (this.SpawnDirector && typeof this.SpawnDirector.update === "function") {
-      this.SpawnDirector.update(time, delta);
-    }
+    // Player
+    this.player.update?.(this.cursors);
 
-    if (this.player.update) this.player.update(this.cursors);
+    // Spawn
+    this.SpawnDirector?.update(time, delta);
 
-    this.enemies.children.iterate((enemy) => {
-      if (enemy && enemy.update) enemy.update(time, delta);
+    // Enemies (opcional manter mesmo com runChildUpdate)
+    this.enemies.children.iterate(enemy => {
+      enemy?.update?.(time, delta);
     });
 
-    this.xpOrbs.children.iterate((orb) => {
-      if (orb && orb.update) orb.update(this.player);
+    // XP Orbs
+    this.xpOrbs.children.iterate(orb => {
+      orb?.update?.(this.player);
     });
 
+    // HUD
     this.updateHealthBar();
     this.updateXpBar();
 
-    // Observação: não duplicamos lógica de SPACE no update — o listener em create() já faz o trabalho
+    // Timer
+    if (!this.timerText) return;
 
     const elapsed = time - this.matchStartTime;
     const remaining = Math.max(0, this.matchDuration - elapsed);
@@ -230,12 +253,12 @@ export default class MainScene extends Phaser.Scene {
     const minutes = Math.floor(remaining / 60000);
     const seconds = Math.floor((remaining % 60000) / 1000);
 
-    const mm = minutes.toString().padStart(2, "0");
-    const ss = seconds.toString().padStart(2, "0");
-
-    this.timerText.setText(`${mm}:${ss}`);
-
+    this.timerText.setText(
+      `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+    );
   }
+
+
 
   // resto das funções (copie as suas originais, mantive apenas assinaturas)
   processAuraDamage() {
@@ -322,20 +345,31 @@ export default class MainScene extends Phaser.Scene {
   }
 
   updateHealthBar() {
-    if (!this.player) return;
+    if (!this.player || !this.healthBar) return;
 
-    const hpPercent = Phaser.Math.Clamp(this.player.currentHP / this.player.maxHP, 0, 1);
+    const hpPercent = Phaser.Math.Clamp(
+      this.player.currentHP / this.player.maxHP,
+      0,
+      1
+    );
+
     this.healthBar.width = 200 * hpPercent;
   }
 
+
   updateXpBar() {
-    if (!this.player) return;
+    if (!this.player || !this.xpBar || !this.levelText) return;
 
-    const xpPercent = Phaser.Math.Clamp(this.player.xp / this.player.xpToNext, 0, 1);
+    const xpPercent = Phaser.Math.Clamp(
+      this.player.xp / this.player.xpToNext,
+      0,
+      1
+    );
+
     this.xpBar.width = 200 * xpPercent;
-
     this.levelText.setText(`Lv ${this.player.level}`);
   }
+
 
   showXPText(x, y, text) {
     const xpText = this.add.text(x, y - 10, text, {
