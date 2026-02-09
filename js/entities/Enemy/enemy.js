@@ -1,3 +1,5 @@
+import EnemyBullet from "../Enemy/EnemyBullet.js";
+
 const resolveAIType = (type) => {
   if (!type) return "chaser";
   if (type.startsWith("shooter")) return "shooter";
@@ -17,7 +19,6 @@ const resolveVariant = (type) => {
   return "chaser";
 };
 
-
 export default class Enemy extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, type = "chaser") {
     super(scene, x, y, "enemy");
@@ -27,7 +28,6 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.aiType = resolveAIType(type);
     this.applyTint();
 
-
     // alvo padrão
     this.target = scene.player ?? null;
 
@@ -35,7 +35,11 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     // ESCALONAMENTO
     const playerLevel = scene.player?.level ?? 1;
     const gameLevel = scene.level ?? scene.wave ?? 1;
-    const scaleFactor = 1 + playerLevel * 0.15 + gameLevel * 0.2;
+
+    const hpScale = 1 + gameLevel * 0.25;
+    const damageScale = 1 + gameLevel * 0.28;
+
+    const speedScale = 1 + Math.min(gameLevel * 0.03, 0.25);
 
     // -------------------------
     // STATS BASE
@@ -49,11 +53,13 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     // -------------------------
     // ATRIBUTOS
-    this.speed = Math.round(stats.speed * scaleFactor);
-    this.maxHP = Math.round(stats.hp * scaleFactor);
+    this.speed = Math.round(stats.speed * speedScale);
+    this.maxHP = Math.round(stats.hp * hpScale);
     this.currentHP = this.maxHP;
-    this.damage = Math.round(stats.damage * scaleFactor);
-    this.xpValue = Math.round(stats.xp * scaleFactor);
+    this.damage = Math.round(stats.damage * damageScale);
+
+    this.xpValue = Math.round(stats.xp * hpScale);
+
 
     this.isDead = false;
 
@@ -72,6 +78,17 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     // -------------------------
     // COMPORTAMENTO
     this.wanderTimer = 0;
+
+    if (this.aiType === "wanderer") {
+      const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+      this.setVelocity(
+        Math.cos(angle) * this.speed * 0.6,
+        Math.sin(angle) * this.speed * 0.6
+      );
+
+      this.wanderTimer = Phaser.Math.Between(400, 1200);
+    }
+
 
     this.shootCooldown = 1800;
     this.lastShotTime = 0;
@@ -224,20 +241,41 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
 
   shootAt(target, errX = 0, errY = 0) {
     if (!target?.active) return;
+    const angle = Phaser.Math.Angle.Between(
+      this.x,
+      this.y,
+      target.x + errX,
+      target.y + errY
+    );
 
-    const proj = this.scene.enemyBullets.get(this.x, this.y, "bullet");
+    const proj = new EnemyBullet(
+      this.scene,
+      this.x,
+      this.y,
+      angle,
+      this.damage
+    );
+
+    this.scene.enemyBullets.add(proj);
+
+    const baseAngle = Phaser.Math.Angle.Between(
+      this.x,
+      this.y,
+      target.x,
+      target.y
+    );
+
+    const spread = Phaser.Math.DegToRad(
+      Phaser.Math.Between(-6, 6)
+    );
+
+    const finalAngle = baseAngle + spread;
+
     if (!proj) return;
 
     proj.setActive(true);
     proj.setVisible(true);
     proj.body.setAllowGravity(false);
-
-    this.scene.physics.moveTo(
-      proj,
-      target.x + errX,
-      target.y + errY,
-      280
-    );
 
     const cleanup = () => {
       if (!proj.active) return;

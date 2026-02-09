@@ -62,14 +62,24 @@ export default class WeaponSystem {
   _useFrasco() {
     const scene = this.scene;
     const p = this.player;
-    const pointer = scene.input.activePointer;
+    const target = scene.getClosestEnemy(450); // alcance tático
+    if (!target) return;
 
     const angle1 = Phaser.Math.Angle.Between(
-      p.x,
-      p.y,
-      pointer.worldX,
-      pointer.worldY
+      p.x, p.y,
+      target.x, target.y
     );
+
+    const spread = Phaser.Math.FloatBetween(-0.08, 0.08);
+    const angle = angle1 + spread;
+
+    // usa o ângulo final
+    scene.physics.velocityFromRotation(
+      angle,
+      FRASCO_CONFIG.VELOCITY,
+      flask.body.velocity
+    );
+
 
     const effects = ["fire", "poison", "slow"];
     const chosenEffect = effects[Math.floor(Math.random() * effects.length)];
@@ -268,17 +278,34 @@ export default class WeaponSystem {
     const SPEED = 420;
     foice.isControlling = true;
 
+    let aimOffset = Phaser.Math.FloatBetween(-0.12, 0.12);
+
     const updateFoice = () => {
       if (!foice.isControlling || !foice.active) return;
-      const pointer = scene.input.activePointer;
+
+      const target = scene.getClosestEnemy(450);
+      if (!target) {
+        foice.body.setVelocity(0, 0);
+        return;
+      }
+
       const angle = Phaser.Math.Angle.Between(
         foice.x,
         foice.y,
-        pointer.worldX,
-        pointer.worldY
-      );
+        target.x,
+        target.y
+      ) + aimOffset;
+
       foice.rotation = angle;
       scene.physics.velocityFromRotation(angle, SPEED, foice.body.velocity);
+
+      scene.time.addEvent({
+        delay: 400,
+        loop: true,
+        callback: () => {
+          aimOffset = Phaser.Math.FloatBetween(-0.12, 0.12);
+        }
+      });
     };
 
     const followTimer = scene.time.addEvent({

@@ -6,6 +6,8 @@ import ClassSystem from "../systems/ClassSystems.js";
 import PassiveSystem from "../systems/PassiveSystem/PassiveSystem.js";
 import WeaponSystem from "../systems/WeaponSystem.js";
 import SpawnDirector from "../Director/SpawnDirector.js";
+import { PLAYER_CLASSES } from "../entities/Player/PlayerClass.js";
+import EnemyBullet from "../entities/Enemy/EnemyBullet.js";
 
 export default class MainScene extends Phaser.Scene {
   constructor() {
@@ -23,6 +25,11 @@ export default class MainScene extends Phaser.Scene {
       { key: "flask", color: 0x00ff00, type: "rect", w: 8, h: 8 }
     ];
 
+    this.load.spritesheet("alquimista", "assets/Sprites/alquimista.jpg", {
+      frameWidth: 64,
+      frameHeight: 64
+    });
+
     shapes.forEach(shape => {
       g.clear();
       g.fillStyle(shape.color, 1);
@@ -33,15 +40,24 @@ export default class MainScene extends Phaser.Scene {
       g.generateTexture(shape.key, shape.w || shape.r * 2, shape.h || shape.r * 2);
     });
 
+    if (!this.textures.exists("pixel")) {
+      const gfx = this.make.graphics({ x: 0, y: 0, add: false });
+      gfx.fillStyle(0xffffff, 1);
+      gfx.fillRect(0, 0, 1, 1);
+      gfx.generateTexture("pixel", 1, 1);
+      gfx.destroy();
+    }
+
     g.destroy();
   }
 
   init(data) {
-    this.selectedClass = data.selectedClass || null;
+    this.selectedClassKey = data?.selectedClassKey ?? null;
+    console.log("Selected class key:", this.selectedClassKey);
   }
 
+
   create() {
-    // Inputs
     this.cursors = this.input.keyboard.addKeys("W,S,A,D");
     this.cameras.main.setBackgroundColor("#202733");
 
@@ -122,94 +138,155 @@ export default class MainScene extends Phaser.Scene {
       }
     });
 
-    // Start
-    if (this.selectedClass) {
-      this.startGame(this.selectedClass);
-    } else {
-      this.scene.start("MenuScene");
-    }
-
     // XP drop
     this.events.on("enemyKilled", enemy => {
       if (!enemy) return;
       this.spawnXPOrb(enemy.x, enemy.y, enemy.xpValue);
     });
 
-    this.enemyBullets = this.physics.add.group({
-      classType: Phaser.Physics.Arcade.Image,
-      runChildUpdate: false
-    });
+    this.enemyBullets = this.add.group();
+
+    // Start
+    if (!this.selectedClassKey) {
+      console.error("Classe não definida, voltando ao menu");
+      this.scene.start("MenuScene");
+      return;
+    }
+
+    console.log("Chamando startGame...");
+    this.startGame(this.selectedClassKey);
 
   }
 
 
   // cria/encontra player e inicia sistemas que precisam dele
-  startGame(selectedClass) {
+  startGame(classKey) {
+    // evita iniciar duas vezes
     if (this.isGameStarted) return;
     this.isGameStarted = true;
 
-    // cria o player (uso do seu construtor original)
+    // resolve configuração da classe
+    const classConfig = PLAYER_CLASSES[classKey];
+
+    if (!classConfig) {
+      console.error("Classe inválida:", classKey);
+      return;
+    }
+
+    console.log("Iniciando jogo com a classe:", classKey);
+
+    // ===== PLAYER =====
     this.player = new Player(
       this,
       this.worldWidth / 2,
       this.worldHeight / 2,
-      selectedClass
+      classKey
     );
 
-    if (this.player.setCollideWorldBounds)
-      this.player.setCollideWorldBounds(true);
+    if (!this.player) {
+      console.error("Falha ao criar o Player");
+      return;
+    }
 
+    this.player.setCollideWorldBounds?.(true);
+
+    // câmera segue o player
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
 
-    // sistemas que precisam de player
+    // ===== SISTEMAS =====
     this.weaponSystem = new WeaponSystem(this, this.player);
-    // cria passiveSystem COM player aqui (apenas uma vez)
     this.passiveSystem = new PassiveSystem(this, this.player);
-    this.passiveSystem.activateClassAbilities(selectedClass.name);
 
-    if (this.classSystem.menuBackground) this.classSystem.menuBackground.destroy();
-    if (this.classSystem.classButtons)
-      this.classSystem.classButtons.forEach(btn => btn.destroy());
+    if (classConfig.weaponKey) {
+      this.weaponSystem.useWeapon(classConfig.weaponKey);
+    }
 
-    if (selectedClass.weaponKey) {
+    this.passiveSystem.activateClassAbilities?.(classKey);
+
+
+    // ativa habilidades/passivas da classe
+    this.passiveSystem.activateClassAbilities?.(classKey);
+
+    // ===== ARMA INICIAL =====
+    if (classConfig.weaponKey) {
       this.weaponLoopEvent = this.time.addEvent({
         delay: 1200,
         loop: true,
-        callback: () => this.weaponSystem.useWeapon(selectedClass.weaponKey),
+        callback: () => {
+          this.weaponSystem.useWeapon(classConfig.weaponKey);
+        },
       });
     }
 
-    if (selectedClass.moveSpeed) this.player.speed *= 1 + selectedClass.moveSpeed;
-    if (selectedClass.damageMultiplier) this.player.baseDamage *= selectedClass.damageMultiplier;
-    if (selectedClass.passive) selectedClass.passive(this, this.player);
+    // ===== MODIFICADORES DE CLASSE =====
+    if (classConfig.moveSpeed) {
+      this.player.speed *= 1 + classConfig.moveSpeed;
+    }
 
-    // HUD (health/xp) — sua implementação original
-    this.healthBarBG = this.add.rectangle(100, 20, 200, 20, 0x333333).setOrigin(0).setScrollFactor(0);
-    this.healthBar = this.add.rectangle(100, 20, 200, 20, 0xff0000).setOrigin(0).setScrollFactor(0);
+    if (classConfig.damageMultiplier) {
+      this.player.baseDamage *= classConfig.damageMultiplier;
+    }
 
-    this.xpBarBG = this.add.rectangle(100, 50, 200, 10, 0x222222).setOrigin(0).setScrollFactor(0);
-    this.xpBar = this.add.rectangle(100, 50, 0, 10, 0x6a00ff).setOrigin(0).setScrollFactor(0);
+    // ===== HUD =====
+    this.healthBarBG = this.add
+      .rectangle(100, 20, 200, 20, 0x333333)
+      .setOrigin(0)
+      .setScrollFactor(0);
 
-    this.levelText = this.add.text(310, 35, `Lv ${this.player.level}`, {
-      fontSize: "16px",
-      fill: "#ffffff",
-    }).setScrollFactor(0);
+    this.healthBar = this.add
+      .rectangle(100, 20, 200, 20, 0xff0000)
+      .setOrigin(0)
+      .setScrollFactor(0);
+
+    this.xpBarBG = this.add
+      .rectangle(100, 50, 200, 10, 0x222222)
+      .setOrigin(0)
+      .setScrollFactor(0);
+
+    this.xpBar = this.add
+      .rectangle(100, 50, 0, 10, 0x6a00ff)
+      .setOrigin(0)
+      .setScrollFactor(0);
+
+    this.levelText = this.add
+      .text(310, 35, `Lv ${this.player.level}`, {
+        fontSize: "16px",
+        fill: "#ffffff",
+      })
+      .setScrollFactor(0);
 
     this.updateHealthBar();
     this.updateXpBar();
 
-    // Aura overlap
+    // ===== COLISÕES =====
+    this.physics.add.overlap(
+      this.player,
+      this.xpOrbs,
+      this.handleXPCollect,
+      null,
+      this
+    );
+
+    this.physics.add.overlap(
+      this.player,
+      this.enemies,
+      this.handlePlayerHit,
+      null,
+      this
+    );
+
+    // ===== AURA =====
     if (this.player.aura) {
-      this.physics.add.overlap(this.player.aura, this.enemies, (aura, enemy) => {
-        this.enemiesInAura.add(enemy);
-      });
+      this.physics.add.overlap(
+        this.player.aura,
+        this.enemies,
+        (aura, enemy) => {
+          this.enemiesInAura.add(enemy);
+        }
+      );
     }
 
-    // colisões e overlaps
-    this.physics.add.overlap(this.player, this.xpOrbs, this.handleXPCollect, null, this);
-    this.physics.add.overlap(this.player, this.enemies, this.handlePlayerHit, null, this);
-
-    // Evento periódico para processar dano da aura
+    // ===== LOOP DE DANO DA AURA =====
     this.time.addEvent({
       delay: this.player.damageInterval || 200,
       callback: this.processAuraDamage,
@@ -220,6 +297,7 @@ export default class MainScene extends Phaser.Scene {
     // garante física ativa
     this.physics.resume();
   }
+
 
   update(time, delta) {
     if (!this.isGameStarted || !this.player) return;
@@ -258,6 +336,27 @@ export default class MainScene extends Phaser.Scene {
     );
   }
 
+  getClosestEnemy(maxRange = Infinity) {
+    if (!this.enemies || !this.player) return null;
+
+    let closest = null;
+    let minDist = maxRange;
+
+    const px = this.player.x;
+    const py = this.player.y;
+
+    this.enemies.children.iterate(enemy => {
+      if (!enemy || !enemy.active || enemy.isDead) return;
+
+      const d = Phaser.Math.Distance.Between(px, py, enemy.x, enemy.y);
+      if (d < minDist) {
+        minDist = d;
+        closest = enemy;
+      }
+    });
+
+    return closest;
+  }
 
 
   // resto das funções (copie as suas originais, mantive apenas assinaturas)
@@ -412,5 +511,4 @@ export default class MainScene extends Phaser.Scene {
     // opcional: screen shake leve
     this.cameras.main.shake(200, 0.005);
   }
-
 }

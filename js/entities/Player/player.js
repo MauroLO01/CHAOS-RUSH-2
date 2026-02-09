@@ -1,19 +1,34 @@
 import StatsPlayer from "./StatsPlayer.js";
 import DamagePlayer from "./DamagePlayer.js";
+import { PLAYER_CLASSES } from "./PlayerClass.js";
 
 export default class Player extends Phaser.Physics.Arcade.Sprite {
-  constructor(scene, x, y, texture) {
-    super(scene, x, y, texture);
+  constructor(scene, x, y, classKey) {
+    console.log("Player constructor recebeu:", classKey);
+
+    const classConfig = PLAYER_CLASSES[classKey];
+    console.log("Config da classe:", classConfig);
+
+    if (!classConfig) {
+      console.error("Classe invalida para o Player:", classKey);
+      return;
+    }
+
+    super(scene, x, y, classConfig.texture, classConfig.frame ?? 0);
+
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
+    this.classKey = classKey;
+    this.classConfig = classConfig;
+
     // SISTEMAS DE STAT E DANO
-    this.stats = new StatsPlayer(this);
+    this.stats = new StatsPlayer(this, classConfig.stats);
     this.damageSystem = new DamagePlayer(this, this.stats);
 
     // SISTEMA DE VELOCIDADE
-    this.speedBase = 200; // velocidade real centralizada
-    this.speedModifiers = {}; // {nomeDoEfeito: multiplicador}
+    this.speedBase = 200;
+    this.speedModifiers = {};
     this.speed = this.speedBase;
 
     // STATUS BASE
@@ -42,19 +57,20 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       dash: "SPACE",
     });
 
-    // MOVIMENTO / DASH
     this.dashing = false;
     this.dashCooldown = false;
 
     this.setCollideWorldBounds(true);
     this.facing = "down";
 
-    // TRAVAR/DESTRAVAR ATAQUE
     this.canAttack = true;
     this.inputLocked = false;
+
+    this.createAnimations();
   }
 
- 
+
+
   // SISTEMA PRINCIPAL
 
   addSpeedModifier(name, mult) {
@@ -106,7 +122,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       this.setVelocity(0, 0);
       return;
     }
-    
+
     this.handleMovement();
     this.handleDash();
 
@@ -206,6 +222,27 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
   refillShield(amount) {
     this.damageSystem.addShield(amount);
+  }
+
+  createAnimations() {
+    const anims = this.scene.anims;
+    const animConfig = this.classConfig.animations;
+
+    for (const key in animConfig) {
+      const animKey = `${this.classKey}-${key}`;
+
+      if (anims.exists(animKey)) continue;
+
+      anims.create({
+        key: animKey,
+        frames: anims.generateFrameNumbers(this.texture.key, {
+          start: animConfig[key].start,
+          end: animConfig[key].end
+        }),
+        frameRate: animConfig[key].frameRate, // ← CORREÇÃO
+        repeat: animConfig[key].repeat ?? -1
+      });
+    }
   }
 
   // MORTE DO PLAYER

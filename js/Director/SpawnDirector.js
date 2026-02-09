@@ -5,198 +5,161 @@ export default class SpawnDirector {
         this.scene = scene;
         this.player = null;
 
-        // ----- Controle Linear -----
-        this.spawnPoints = 0;
-        this.pointsPerSecond = 1.2; // 🔥 taxa base (linear)
-        this.maxEnemies = 30;
-
-        // ----- Spawn -----
-        this.spawnRadius = 450;
-
-        // ----- Pool -----
-        this.enemyPool = ["chaser"];
-
-        this.enemyCost = {
-            chaser: 1,
-            wanderer: 1.2,
-            shooter: 1.5,
-            fast: 1.3,
-            tank: 2.5,
-            elite: 4
-        };
-
-        // ----- Progressão -----
-        this.unlocks = [
-            { time: 60, type: "wanderer" },
-            { time: 120, type: "shooter" },
-            { time: 240, type: "fast" },
-            { time: 360, type: "tank" },
-            { time: 480, type: "elite" }
-        ];
-
         this.elapsedTime = 0;
 
-        // ----- CHAOS EVENT -----
-        this.chaos = {
-            active: false,
-            duration: 20,          // segundos
-            cooldown: 90,          // tempo mínimo entre chaos
-            timer: 0,
-            nextAt: 60,            // primeiro chaos após 1 min
-            spawnMultiplier: 2.2,  // intensidade
-            maxEnemyBonus: 20
+        this.baseSpawnRate = 1.0;     // inimigos / segundo
+        this.spawnAccumulator = 0;
+
+        this.baseMaxEnemies = 25;
+
+        // ==========================
+        // 🧩 COMPOSIÇÃO
+        // ==========================
+        this.enemyPool = ["chaser"];
+
+        this.enemyWeights = {
+            chaser: 5,
+            shooter: 2,
+            tank: 1,
+            elite: 0.5
         };
 
-        // Spawn batching
-        this.spawnBatch = [];
-        this.spawnBatchDelay = 40; // ms entre spawns do pacote
-        this.lastBatchTime = 0;
+        this.unlocks = [
+            { time: 120, type: "shooter" },
+            { time: 300, type: "tank" },
+            { time: 420, type: "elite" }
+        ];
 
-        // Limite por tipo (anti-spam)
+        //eventos
+        this.event = {
+            active: false,
+            type: null,
+            timer: 0
+        };
+
+        this.nextEventAt = 90;
+
+        //SPAWN
+        this.spawnRadius = 450;
+        this.spawnDelay = 120;
+        this.lastSpawnTime = 0;
+
+        //LIMITES
         this.activePerType = {};
         this.maxPerType = {
-            chaser: 18,
-            wanderer: 10,
+            chaser: 20,
             shooter: 8,
-            tank: 6,
-            elite: 3
+            tank: 5,
+            elite: 2
         };
-
-
     }
 
+    // ===================================================
     update(time, delta) {
-        if (!this.scene.player || !this.scene.enemies) return;
+        if (!this.scene.player) return;
         if (!this.player) this.player = this.scene.player;
-
 
         const dt = delta / 1000;
         this.elapsedTime += dt;
 
         this.updateUnlocks();
-        this.updateChaos(dt);
+        this.updateEvents(dt);
 
-        // ----- taxa base (linear) -----
-        let pointsRate = this.pointsPerSecond;
-        let maxEnemies = this.maxEnemies;
-
-        if (this.chaos.active) {
-            pointsRate *= this.chaos.spawnMultiplier;
-            maxEnemies += this.chaos.maxEnemyBonus;
-        }
-
-        this.spawnPoints += pointsRate * dt;
-
+        const maxEnemies = this.getMaxEnemies();
         const alive = this.scene.enemies.countActive(true);
         if (alive >= maxEnemies) return;
 
-        this.trySpawn(time);
+        this.spawnAccumulator += this.getSpawnRate() * dt;
+
+        if (
+            this.spawnAccumulator >= 1 &&
+            time - this.lastSpawnTime >= this.spawnDelay
+        ) {
+            this.spawnAccumulator -= 1;
+            this.lastSpawnTime = time;
+            this.spawnEnemyFromPool();
+        }
     }
 
+    // ===================================================
+    getSpawnRate() {
+        let rate = this.baseSpawnRate;
 
+        // Progressão lenta
+        rate += Math.min(this.elapsedTime / 300, 1.5);
+
+        if (this.event.active && this.event.type === "horde") {
+            rate *= 1.8;
+        }
+
+        return rate;
+    }
+
+    getMaxEnemies() {
+        let max = this.baseMaxEnemies;
+
+        max += Math.floor(this.elapsedTime / 120) * 3;
+
+        if (this.event.active && this.event.type === "horde") {
+            max += 10;
+        }
+
+        return max;
+    }
+
+    // ===================================================
     updateUnlocks() {
         this.unlocks.forEach(u => {
             if (this.elapsedTime >= u.time && !this.enemyPool.includes(u.type)) {
                 this.enemyPool.push(u.type);
-                console.log(`🔓 Novo inimigo liberado: ${u.type}`);
+                console.log(`🔓 ${u.type} liberado`);
             }
         });
     }
 
-    trySpawn(time) {
-        if (!this.scene.player) return;
+    // ===================================================
+    spawnEnemyFromPool() {
+        const pool = [];
 
-        // -----------------------------
-        // Executando batch pendente
-        if (this.spawnBatch.length > 0) {
-            if (time - this.lastBatchTime >= this.spawnBatchDelay) {
-                const next = this.spawnBatch.shift();
-                this.lastBatchTime = time;
-
-                this.spawnEnemy(next.type, next.x, next.y);
-            }
-            return;
-        }
-
-        // -----------------------------
-        // 🔒 FILTRO DE UNLOCK (ANTI-SPAWN PREMATURO)
-        const allowedPool = this.enemyPool.filter(type => {
-            const unlock = this.unlocks.find(u => u.type === type);
-            return !unlock || this.elapsedTime >= unlock.time;
-        });
-
-        if (allowedPool.length === 0) return;
-
-        let pool = [...allowedPool];
-
-        // -----------------------------
-        // CHAOS MODE influencia a roleta
-        if (this.chaos?.active) {
-            const cheap = pool.filter(t => (this.enemyCost[t] ?? 1) <= 1.2);
-
-            pool = Phaser.Utils.Array.Shuffle([
-                ...pool,
-                ...cheap,
-                ...cheap
-            ]);
-        } else {
-            pool = Phaser.Utils.Array.Shuffle(pool);
-        }
-
-        // -----------------------------
-        // Tentativa de spawn
-        for (const type of pool) {
-            const cost = this.enemyCost[type] ?? 1;
-
-            if (this.spawnPoints < cost) continue;
-
+        this.enemyPool.forEach(type => {
             const active = this.activePerType[type] ?? 0;
             const limit = this.maxPerType[type] ?? 99;
+            if (active >= limit) return;
 
-            if (active >= limit) continue;
+            const weight = this.enemyWeights[type] ?? 1;
+            for (let i = 0; i < weight; i++) pool.push(type);
+        });
 
-            const pos = this.getSpawnPosition();
-            if (!pos) return;
+        if (pool.length === 0) return;
 
-            const batchSize = this.chaos?.active
-                ? Phaser.Math.Between(2, 3)
-                : 1;
+        const type = Phaser.Utils.Array.GetRandom(pool);
+        const pos = this.getSpawnPosition();
+        if (!pos) return;
 
-            this.spawnPoints -= cost * batchSize;
-
-            for (let i = 0; i < batchSize; i++) {
-                this.spawnBatch.push({
-                    type,
-                    x: pos.x + Phaser.Math.Between(-20, 20),
-                    y: pos.y + Phaser.Math.Between(-20, 20)
-                });
-            }
-
-            this.lastBatchTime = time;
-            return;
-        }
+        this.spawnEnemy(type, pos.x, pos.y);
     }
 
+    // ===================================================
     spawnEnemy(type, x, y) {
         const enemy = new Enemy(this.scene, x, y, type);
-
         enemy.setTarget(this.scene.player);
-        this.scene.enemies.add(enemy);
 
+        this.scene.enemies.add(enemy);
         this.activePerType[type] = (this.activePerType[type] ?? 0) + 1;
 
         enemy.once("destroy", () => {
             this.activePerType[type]--;
-        })
+        });
     }
 
+    // ===================================================
     getSpawnPosition() {
         const px = this.player.x;
         const py = this.player.y;
 
-        for (let i = 0; i < 25; i++) {
+        for (let i = 0; i < 20; i++) {
             const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-            const dist = Phaser.Math.Between(this.spawnRadius, this.spawnRadius + 350);
+            const dist = Phaser.Math.Between(this.spawnRadius, this.spawnRadius + 300);
 
             const x = px + Math.cos(angle) * dist;
             const y = py + Math.sin(angle) * dist;
@@ -212,37 +175,33 @@ export default class SpawnDirector {
         return null;
     }
 
-    updateChaos(dt) {
-        // iniciar chaos
-        if (
-            !this.chaos.active &&
-            this.elapsedTime >= this.chaos.nextAt
-        ) {
-            this.startChaos();
+    // ===================================================
+    updateEvents(dt) {
+        if (!this.event.active && this.elapsedTime >= this.nextEventAt) {
+            this.startEvent("horde");
         }
 
-        // atualizar chaos
-        if (this.chaos.active) {
-            this.chaos.timer -= dt;
-
-            if (this.chaos.timer <= 0) {
-                this.endChaos();
+        if (this.event.active) {
+            this.event.timer -= dt;
+            if (this.event.timer <= 0) {
+                this.endEvent();
             }
         }
     }
 
-    startChaos() {
-        this.chaos.active = true;
-        this.chaos.timer = this.chaos.duration;
+    startEvent(type) {
+        this.event.active = true;
+        this.event.type = type;
+        this.event.timer = 18;
 
-        console.log("🔥 HORA DO CHAOS!");
+        console.log("🔥 HORDE INICIADA");
     }
 
-    endChaos() {
-        this.chaos.active = false;
-        this.chaos.nextAt = this.elapsedTime + this.chaos.cooldown;
+    endEvent() {
+        this.event.active = false;
+        this.event.type = null;
+        this.nextEventAt = this.elapsedTime + 90;
 
-        console.log("🕯️ Chaos cessou...");
+        console.log("🕯️ Horde finalizada");
     }
-
 }
