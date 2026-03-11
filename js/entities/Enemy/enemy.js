@@ -288,7 +288,6 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.scene.time.delayedCall(2200, cleanup);
   }
 
-
   // =====================================================
 
   applyTint() {

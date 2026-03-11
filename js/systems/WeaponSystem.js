@@ -60,87 +60,86 @@ export default class WeaponSystem {
 
   // ─────────────── 🧪 FRASCO INSTÁVEL ───────────────
   _useFrasco() {
+
     const scene = this.scene;
     const p = this.player;
-    const target = scene.getClosestEnemy(450); // alcance tático
+
+    const target = scene.getClosestEnemy(450);
     if (!target) return;
 
-    const angle1 = Phaser.Math.Angle.Between(
-      p.x, p.y,
-      target.x, target.y
-    );
-
-    const spread = Phaser.Math.FloatBetween(-0.08, 0.08);
-    const angle = angle1 + spread;
-
-    // usa o ângulo final
-    scene.physics.velocityFromRotation(
-      angle,
-      FRASCO_CONFIG.VELOCITY,
-      flask.body.velocity
-    );
-
-
-    const effects = ["fire", "poison", "slow"];
-    const chosenEffect = effects[Math.floor(Math.random() * effects.length)];
-
+    // verifica textura antes de criar
     if (!scene.textures.exists("flask")) {
-      console.error(
-        "❌ Textura 'flask' não encontrada! Verifique o preload()."
-      );
+      console.error("❌ Textura 'flask' não encontrada! Verifique o preload().");
       return;
     }
 
-    // Bônus de área apenas para o efeito 'slow'
+    // efeitos possíveis
+    const effects = ["fire", "poison", "slow"];
+    const chosenEffect = effects[Math.floor(Math.random() * effects.length)];
+
+    // bônus de área apenas para slow
     const slowRadiusBonus =
       chosenEffect === "slow"
-        ? this.player.slowRadiusBonus || 30 // default 30 se não definido
+        ? (this.player.slowRadiusBonus || 30)
         : 0;
 
     const finalRadius = FRASCO_CONFIG.AREA_RADIUS + slowRadiusBonus;
 
-    // Cria o sprite do frasco
+    // calcula ângulo até o inimigo
+    const baseAngle = Phaser.Math.Angle.Between(
+      p.x,
+      p.y,
+      target.x,
+      target.y
+    );
+
+    // pequeno espalhamento
+    const spread = Phaser.Math.FloatBetween(-0.08, 0.08);
+    const finalAngle = baseAngle + spread;
+
+    // cria frasco
     const flask = scene.physics.add
       .sprite(p.x, p.y, "flask")
       .setDepth(5)
       .setTint(getDebuffColor(chosenEffect));
 
-    // Direção do lançamento (aponta para o cursor)
+    // guarda o efeito no objeto
+    flask.effect = chosenEffect;
+
+    // aplica velocidade
     scene.physics.velocityFromRotation(
-      angle1,
+      finalAngle,
       FRASCO_CONFIG.VELOCITY,
       flask.body.velocity
     );
 
-    // Ativa cooldown
+    // pequena rotação visual opcional
+    flask.setAngularVelocity(300);
+
+    // cooldown da habilidade
     this.startCooldown("frascoInstavel", 1200);
 
-    // Quando colidir com inimigo: cria efeito na posição de colisão usando finalRadius
-    const col = scene.physics.add.collider(
+    // colisão com inimigos
+    const collider = scene.physics.add.collider(
       flask,
       scene.enemies,
-      (frasco, enemy) => {
-        if (frasco && frasco.active) {
-          this._createGroundEffect(
-            frasco.x,
-            frasco.y,
-            chosenEffect,
-            finalRadius
-          );
-          frasco.destroy();
-        }
+      (f, enemy) => {
+
+        if (!f.active) return;
+
+        this._createGroundEffect(
+          f.x,
+          f.y,
+          f.effect,
+          finalRadius
+        );
+
+        f.destroy();
+
+        // remove collider para evitar leak
+        scene.physics.world.removeCollider(collider);
       }
     );
-
-    // Se não colidir, cria o efeito ao fim da vida
-    scene.time.delayedCall(FRASCO_CONFIG.LIFESPAN, () => {
-      if (flask && flask.active) {
-        this._createGroundEffect(flask.x, flask.y, chosenEffect, finalRadius);
-        flask.destroy();
-      }
-      // garante que o collider não fique referenciando algo morto
-      if (col) col.destroy && col.destroy();
-    });
   }
 
   _createGroundEffect(
