@@ -7,14 +7,12 @@ export default class SpawnDirector {
 
         this.elapsedTime = 0;
 
-        this.baseSpawnRate = 1.0;     // inimigos / segundo
+        this.baseSpawnRate = 1.0;
         this.spawnAccumulator = 0;
 
         this.baseMaxEnemies = 25;
 
-        // ==========================
         // 🧩 COMPOSIÇÃO
-        // ==========================
         this.enemyPool = ["chaser"];
 
         this.enemyWeights = {

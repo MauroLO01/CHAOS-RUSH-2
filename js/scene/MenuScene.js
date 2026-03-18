@@ -15,26 +15,26 @@ export default class MenuScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(this.scale.width / 2, 160, "Fractured Realms", {
-        fontSize: "28px",
+      .text(this.scale.width / 2, 150, "Fractured Realms", {
+        fontSize: "20px",
         fill: "#cccccc",
       })
       .setOrigin(0.5);
 
-    const panel = this.add.rectangle(
+    const painel = this.add.rectangle(
       this.scale.width / 2,
       this.scale.height / 2 + 50,
       700,
       300,
       0x000000,
       0.5
-    ).setOrigin(0.5).setStrokeStyle(2, 0x00ffff);
+    ).setOrigin(0.5).setStrokeStyle(2 , 0x00ffff);
 
     const classes = [
       {
         Key: "alquimista",
         name: "A Alquimista Espectral",
-        desc: "Manipula frascos instáveis que causam efeitos aleatórios.\nChance de resetar cooldowns ao coletar itens.",
+        desc: "Manipula frascos instáveis que causam efeitos aleatórios.\nCarregue sua passiva e acabe com seus inimigos.",
         weaponKey: "frascoInstavel",
       },
       {
@@ -98,11 +98,11 @@ export default class MenuScene extends Phaser.Scene {
 
       this.add.text(
         this.scale.width / 2,
-        this.scale.height - 40,
-        "Pressione uma classe para começar",
+        this.scale.height -515,
+        "Pressione uma classe para começar!!",
         {
-          fontSize: "18px",
-          fill: "#888",
+          fontSize: "22px",
+          fill: "#FFF700",
         }
       ).setOrigin(0.5);
     });

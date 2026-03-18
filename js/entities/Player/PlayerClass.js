@@ -23,8 +23,8 @@ export const PLAYER_CLASSES = {
     },
 
     animations: {
-      idle: { start: 0, end: 0, frameRate: 1, repeat: -1 },
-      walk: { start: 0, end: 7, frameRate: 8, repeat: -1 }
+      idle: { start: 0, end: 1, frameRate: 3, repeat: -1 },
+      walk: { start: 2, end: 7, frameRate: 10, repeat: -1 }
     },
 
     passive: PassiveAlquimista,

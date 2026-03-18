@@ -25,9 +25,9 @@ export default class MainScene extends Phaser.Scene {
       { key: "flask", color: 0x00ff00, type: "rect", w: 8, h: 8 }
     ];
 
-    this.load.spritesheet("alquimista", "assets/Sprites/alquimista.jpg", {
-      frameWidth: 64,
-      frameHeight: 64
+    this.load.spritesheet("alquimista", "assets/Sprites/Alquimista.png", {
+      frameWidth: 256,
+      frameHeight: 256
     });
 
     shapes.forEach(shape => {
@@ -159,9 +159,7 @@ export default class MainScene extends Phaser.Scene {
   }
 
 
-  // cria/encontra player e inicia sistemas que precisam dele
   startGame(classKey) {
-    // evita iniciar duas vezes
     if (this.isGameStarted) return;
     this.isGameStarted = true;
 
@@ -172,8 +170,6 @@ export default class MainScene extends Phaser.Scene {
       console.error("Classe inválida:", classKey);
       return;
     }
-
-    console.log("Iniciando jogo com a classe:", classKey);
 
     // ===== PLAYER =====
     this.player = new Player(
@@ -190,10 +186,7 @@ export default class MainScene extends Phaser.Scene {
 
     this.player.setCollideWorldBounds?.(true);
 
-    // câmera segue o player
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
-
-    // ===== SISTEMAS =====
     this.weaponSystem = new WeaponSystem(this, this.player);
     this.passiveSystem = new PassiveSystem(this, this.player);
 
@@ -201,10 +194,6 @@ export default class MainScene extends Phaser.Scene {
       this.weaponSystem.useWeapon(classConfig.weaponKey);
     }
 
-    this.passiveSystem.activateClassAbilities?.(classKey);
-
-
-    // ativa habilidades/passivas da classe
     this.passiveSystem.activateClassAbilities?.(classKey);
 
     // ===== ARMA INICIAL =====

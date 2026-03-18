@@ -4,13 +4,10 @@ import { PLAYER_CLASSES } from "./PlayerClass.js";
 
 export default class Player extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y, classKey) {
-    console.log("Player constructor recebeu:", classKey);
 
     const classConfig = PLAYER_CLASSES[classKey];
-    console.log("Config da classe:", classConfig);
 
     if (!classConfig) {
-      console.error("Classe invalida para o Player:", classKey);
       return;
     }
 
@@ -18,6 +15,13 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     scene.add.existing(this);
     scene.physics.add.existing(this);
+
+    this.setSize(80, 120);
+    this.setOffset(88, 100);
+    this.setScale(0.5, 0.75);
+
+    this.animState = "idle";
+    this.lastAnim = "";
 
     this.classKey = classKey;
     this.classConfig = classConfig;
@@ -69,8 +73,6 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.createAnimations();
   }
 
-
-
   // SISTEMA PRINCIPAL
 
   addSpeedModifier(name, mult) {
@@ -116,7 +118,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   // MOVIMENTO DO PLAYER
-  update(cursors) {
+  update() {
 
     if (this.inputLocked) {
       this.setVelocity(0, 0);
@@ -140,7 +142,9 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   handleMovement() {
+
     const { up, down, left, right } = this.keys;
+
     let vx = 0;
     let vy = 0;
 
@@ -157,6 +161,9 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     if (vx !== 0 || vy !== 0) {
       this.facing = this.getFacingDirection(vx, vy);
     }
+
+    this.updateAnimations(vx, vy);
+
   }
 
   getFacingDirection(vx, vy) {
@@ -243,6 +250,27 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
         repeat: animConfig[key].repeat ?? -1
       });
     }
+  }
+
+  updateAnimations(vx, vy) {
+
+    let state = "idle";
+
+    if (vx !== 0 || vy !== 0) {
+      state = "walk";
+    }
+
+    if (this.animState !== state) {
+      this.animState = state;
+    }
+
+    const animKey = `${this.classKey}-${this.animState}`;
+
+    if (this.lastAnim !== animKey) {
+      this.play(animKey, true);
+      this.lastAnim = animKey;
+    }
+
   }
 
   // MORTE DO PLAYER
