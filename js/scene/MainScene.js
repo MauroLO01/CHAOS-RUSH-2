@@ -30,6 +30,16 @@ export default class MainScene extends Phaser.Scene {
       frameHeight: 256
     });
 
+    this.load.spritesheet("coveiro", "assets/Sprites/Coveiro.png", {
+      frameWidth: 256,
+      frameHeight: 256
+    });
+
+    this.load.spritesheet("sentinela", "assets/Sprites/Sentinela.png", {
+      frameWidth: 256,
+      frameHeight: 256
+    });
+
     shapes.forEach(shape => {
       g.clear();
       g.fillStyle(shape.color, 1);
@@ -292,7 +302,7 @@ export default class MainScene extends Phaser.Scene {
     if (!this.isGameStarted || !this.player) return;
 
     // Player
-    this.player.update?.(this.cursors);
+    this.player.update?.();
 
     // Spawn
     this.SpawnDirector?.update(time, delta);

@@ -71,6 +71,12 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.inputLocked = false;
 
     this.createAnimations();
+
+    const textureKey = scene.textures.exists(classConfig.texture)
+      ? classConfig.texture
+      : "player"; // fallback
+
+    super(scene, x, y, textureKey, classConfig.frame ?? 0);
   }
 
   // SISTEMA PRINCIPAL
@@ -132,13 +138,6 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     let vy = 0;
     let vx = 0;
-
-    if (cursors.A.isDown) vx -= speed;
-    if (cursors.D.isDown) vx += speed;
-    if (cursors.W.isDown) vy -= speed;
-    if (cursors.S.isDown) vy += speed;
-
-    this.setVelocity(vx, vy);
   }
 
   handleMovement() {
@@ -156,7 +155,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     const speed = this.dashing ? this.speed * 3 : this.speed;
 
-    this.setVelocity(vx * speed, vy * speed);
+    const vec = new Phaser.Math.Vector2(vx, vy).normalize();
+    this.setVelocity(vec.x * speed, vec.y * speed);
 
     if (vx !== 0 || vy !== 0) {
       this.facing = this.getFacingDirection(vx, vy);
@@ -246,7 +246,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
           start: animConfig[key].start,
           end: animConfig[key].end
         }),
-        frameRate: animConfig[key].frameRate, // ← CORREÇÃO
+        frameRate: animConfig[key].frameRate || 8,
         repeat: animConfig[key].repeat ?? -1
       });
     }
@@ -266,9 +266,18 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     const animKey = `${this.classKey}-${this.animState}`;
 
+    if (!this.scene.anims.exists(animKey)) {
+      console.warn("Animação não existe:", animKey);
+      return;
+    }
+
     if (this.lastAnim !== animKey) {
       this.play(animKey, true);
       this.lastAnim = animKey;
+    }
+    if (!this.scene.textures.exists(this.texture.key)) {
+      console.warn("Texture não encontrada:", this.texture.key);
+      return;
     }
 
   }
