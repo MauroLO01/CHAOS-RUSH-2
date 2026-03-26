@@ -60,11 +60,14 @@ export default class DamagePlayer {
             isCrit = true;
         }
 
-        // ========= DOUBLE HIT =========
+        //doble hit
+
         const doubleHitChance = this.stats.doubleHit;
         const hits = Math.random() < doubleHitChance ? 2 : 1;
 
-        // ========= LIFESTEAL =========
+
+        // life steal
+        
         const lifesteal = this.stats.lifesteal;
         if (lifesteal > 0) {
             const healAmount = dmg * lifesteal;

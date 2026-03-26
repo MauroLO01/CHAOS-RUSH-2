@@ -11,7 +11,11 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
       return;
     }
 
-    super(scene, x, y, classConfig.texture, classConfig.frame ?? 0);
+    const textureKey = scene.textures.exists(classConfig.texture)
+      ? classConfig.texture
+      : "player";
+
+    super(scene, x, y, textureKey, classConfig.frame ?? 0);
 
     scene.add.existing(this);
     scene.physics.add.existing(this);
@@ -71,12 +75,6 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.inputLocked = false;
 
     this.createAnimations();
-
-    const textureKey = scene.textures.exists(classConfig.texture)
-      ? classConfig.texture
-      : "player"; // fallback
-
-    super(scene, x, y, textureKey, classConfig.frame ?? 0);
   }
 
   // SISTEMA PRINCIPAL
