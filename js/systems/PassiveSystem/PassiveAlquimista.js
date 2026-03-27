@@ -182,7 +182,7 @@ export default class PassiveAlquimista {
 
     const bomb = this.scene.physics.add
       .sprite(p.x, p.y, tex)
-      .setDepth(20)
+      .setDepth(999)
       .setScale(1.45);
 
     this.scene.physics.moveTo(bomb, tx, ty, 700);
@@ -211,6 +211,16 @@ export default class PassiveAlquimista {
       explode
     );
 
+    bomb.setTint(0xffaa00);
+
+    this.scene.tweens.add({
+      targets: bomb,
+      scale: 1.8,
+      duration: 1000,
+      yoyo: true,
+      repeat: 1
+    });
+
     this._tempTimers.push(timeLimit);
     this._overlapDetectors.push(overlap);
   }
@@ -220,25 +230,49 @@ export default class PassiveAlquimista {
     const radius = this.mainExplosionRadius;
     const dmg = 120;
 
+    // DANO
     scene.enemies.getChildren().forEach((e) => {
       if (!e.active) return;
       const d = Phaser.Math.Distance.Between(e.x, e.y, x, y);
       if (d <= radius) {
-        e.takeDamage(dmg);
+        e.takeDamage(dmg, { isCrit: true });
         this.applyBasicPoison(e);
         this.applyBasicSlow(e);
       }
     });
 
-    const fx = scene.add.circle(x, y, radius, 0xffaa66, 0.18).setDepth(25);
+    const flash = scene.add.circle(x, y, 40, 0xffffff, 0.8).setDepth(999);
 
     scene.tweens.add({
-      targets: fx,
+      targets: flash,
+      scale: 4,
       alpha: 0,
-      duration: 380,
-      onComplete: () => fx.destroy(),
+      duration: 1000,
+      ease: "Cubic.Out",
+      onComplete: () => flash.destroy()
     });
 
+    // SHOCKWAVE
+    const wave = scene.add.circle(x, y, 20, 0xffaa66, 0.4)
+      .setStrokeStyle(4, 0xff8844)
+      .setDepth(999);
+
+    scene.tweens.add({
+      targets: wave,
+      radius: radius,
+      alpha: 1,
+      duration: 600,
+      ease: "Quad.Out",
+      onComplete: () => wave.destroy()
+    });
+
+    // FUMAÇA / FOGO (PARTÍCULAS)
+    this.spawnExplosionParticles(x, y);
+
+    // IMPACTO
+    scene.cameras.main.shake(250, 0.015);
+
+    // RESÍDUO
     this.spawnExplosionGroundEffects(x, y);
   }
 
@@ -328,7 +362,9 @@ export default class PassiveAlquimista {
       const px = x + Math.cos(angle) * dist;
       const py = y + Math.sin(angle) * dist;
 
-      const chosen = effects[Math.floor(Math.random() * effects.length)];
+      const chosen = this.getRandonEffect();
+
+      this.spawnStatusEffect(px, py, chosen);
 
       ws._createGroundEffect(
         px,
@@ -341,5 +377,187 @@ export default class PassiveAlquimista {
         }
       );
     }
+  }
+
+  spawnExplosionParticles(x, y) {
+    const scene = this.scene;
+
+    const pulse = this.scene.add.circle(x, y, 60, 0xff6600, 0.2);
+
+    this.scene.tweens.add({
+      targets: pulse,
+      scale: 3,
+      alpha: 0,
+      duration: 500,
+      onComplete: () => pulse.destroy()
+    });
+
+    // FAÍSCAS
+    for (let i = 0; i < 20; i++) {
+      const particle = scene.add.circle(x, y, 3, 0xffaa33).setDepth(999);
+
+      const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+      const speed = Phaser.Math.Between(100, 300);
+
+      scene.tweens.add({
+        targets: particle,
+        x: x + Math.cos(angle) * speed,
+        y: y + Math.sin(angle) * speed,
+        alpha: 0,
+        scale: 0.5,
+        duration: 500,
+        ease: "Cubic.Out",
+        onComplete: () => particle.destroy()
+      });
+    }
+
+    // FUMAÇA
+    for (let i = 0; i < 10; i++) {
+      const smoke = scene.add.circle(x, y, 10, 0x555555, 0.4).setDepth(999);
+
+      const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+      const dist = Phaser.Math.Between(20, 80);
+
+      scene.tweens.add({
+        targets: smoke,
+        x: x + Math.cos(angle) * dist,
+        y: y + Math.sin(angle) * dist,
+        scale: 2,
+        alpha: 0,
+        duration: 800,
+        ease: "Sine.Out",
+        onComplete: () => smoke.destroy()
+      });
+    }
+
+    // ENERGIA CENTRAL
+    const core = scene.add.circle(x, y, 25, 0xffdd88, 0.5).setDepth(999);
+
+    scene.tweens.add({
+      targets: core,
+      scale: 2,
+      alpha: 0,
+      duration: 300,
+      ease: "Cubic.Out",
+      onComplete: () => core.destroy()
+    });
+  }
+
+  spawnStatusEffects(x, y, type) {
+    switch (type) {
+      case "fire":
+        this.spawnFireEffects(x, y);
+        break;
+      case "poison":
+        this.spawnPoisonEffect(x, y);
+        break;
+      case "slow":
+        this.spawnSlowEffect(x, y);
+        break;
+    }
+  }
+
+  spawnFireEffect(x, y) {
+    const scene = this.scene;
+
+    for (let i = 0; i < 12; i++) {
+      const flame = scene.add.circle(x, y, 4, 0xff6600).setDepth(999);
+
+      const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+      const speed = Phaser.Math.Between(40, 120);
+
+      scene.tweens.add({
+        targets: flame,
+        x: x + Math.cos(angle) * speed,
+        y: y + Math.sin(angle) * speed,
+        scale: 0.5,
+        alpha: 0,
+        duration: 400,
+        ease: "Cubic.Out",
+        onComplete: () => flame.destroy()
+      });
+    }
+
+    // glow central
+    const glow = scene.add.circle(x, y, 20, 0xff3300, 0.3);
+
+    scene.tweens.add({
+      targets: glow,
+      scale: 1.8,
+      alpha: 0,
+      duration: 300,
+      onComplete: () => glow.destroy()
+    });
+  }
+
+  spawnPoisonEffect(x, y) {
+    const scene = this.scene;
+
+    for (let i = 0; i < 8; i++) {
+      const bubble = scene.add.circle(x, y, 6, 0x66ff66, 0.6).setDepth(999);
+
+      const offsetX = Phaser.Math.Between(-20, 20);
+      const offsetY = Phaser.Math.Between(-10, 10);
+
+      scene.tweens.add({
+        targets: bubble,
+        x: x + offsetX,
+        y: y + offsetY - 30,
+        scale: 0.3,
+        alpha: 0,
+        duration: 800,
+        ease: "Sine.Out",
+        onComplete: () => bubble.destroy()
+      });
+    }
+
+    // pulso venenoso
+    const pulse = scene.add.circle(x, y, 25, 0x33cc66, 0.2);
+
+    scene.tweens.add({
+      targets: pulse,
+      scale: 1.5,
+      alpha: 0,
+      duration: 600,
+      onComplete: () => pulse.destroy()
+    });
+  }
+
+  spawnSlowEffect(x, y) {
+    const scene = this.scene;
+
+    for (let i = 0; i < 10; i++) {
+      const ice = scene.add.rectangle(x, y, 4, 8, 0x66ccff).setDepth(999);
+
+      const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+      const dist = Phaser.Math.Between(20, 60);
+
+      scene.tweens.add({
+        targets: ice,
+        x: x + Math.cos(angle) * dist,
+        y: y + Math.sin(angle) * dist,
+        rotation: Phaser.Math.FloatBetween(0, 3),
+        alpha: 0,
+        duration: 700,
+        ease: "Sine.Out",
+        onComplete: () => ice.destroy()
+      });
+    }
+
+    // aura fria
+    const aura = scene.add.circle(x, y, 30, 0x66ccff, 0.15);
+
+    scene.tweens.add({
+      targets: aura,
+      scale: 2,
+      alpha: 0,
+      duration: 700,
+      onComplete: () => aura.destroy()
+    });
+  }
+
+  getRandonEffect() {
+    const effects = ["fire", "poison", "slow"];
+    return effects[Math.floor(Math.random() * effects.length)]
   }
 }

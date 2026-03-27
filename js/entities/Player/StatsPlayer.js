@@ -5,6 +5,7 @@ export default class StatsPlayer {
     // Base imutável da classe (alquimista, coveiro, etc)
     this.baseStats = {
       maxHP: 100,
+      damage: 1,
 
       armor: 0,
       shield: 0,
@@ -30,6 +31,9 @@ export default class StatsPlayer {
 
       moveSpeedMultiplier: 1,
       auraRange: 110,
+
+      attackSpeed: 1,
+      extraProjects: 0,
 
       ...baseStats // 👈 classe sobrescreve aqui
     };

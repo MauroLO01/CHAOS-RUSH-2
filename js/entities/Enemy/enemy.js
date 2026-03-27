@@ -300,15 +300,67 @@ export default class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.setTint(tints[this.aiType] ?? 0xffffff);
   }
 
-  takeDamage(amount) {
+  takeDamage(amount, options = {}) {
     if (this.isDead) return;
+
+    const { isCrit = false } = options;
 
     this.currentHP -= amount;
     this.flashDamage();
 
+    // 💥 TEXTO DE DANO
+    if (this.scene.createFloatingText) {
+      const color = isCrit ? "#ffd700" : "#ffffff";
+      const size = isCrit ? "26px" : "18px";
+
+      const txt = this.scene.add.text(this.x, this.y - 20, Math.floor(amount), {
+        fontSize: size,
+        color: color,
+        fontStyle: "bold",
+        stroke: "#000",
+        strokeThickness: 5
+      }).setOrigin(0.5);
+
+      this.scene.tweens.add({
+        targets: txt,
+        y: this.y - 60,
+        alpha: 0,
+        scale: isCrit ? 1.4 : 1,
+        duration: 600,
+        ease: "Cubic.Out",
+        onComplete: () => txt.destroy()
+      });
+    }
+
+    // 💥 EFEITO EXTRA CRÍTICO
+    if (isCrit) {
+      this.scene.cameras?.main?.shake(120, 0.01);
+
+      this.setTint(0xffd700);
+      this.scene.time.delayedCall(100, () => this.clearTint());
+    }
+
     if (this.currentHP <= 0) {
       this.die();
     }
+  }
+
+  createHitEffect(isCrit) {
+    const color = isCrit ? 0xffff00 : 0xff0000;
+
+    const particles = this.scene.add.particles(0, 0, 'particle', {
+      speed: { min: -100, max: 100 },
+      scale: { start: 0.5, end: 0 },
+      tint: color,
+      lifespan: 200,
+      quantity: isCrit ? 20 : 10
+    });
+
+    particles.setPosition(this.x, this.y);
+
+    this.scene.time.delayedCall(200, () => {
+      particles.destroy();
+    })
   }
 
   flashDamage() {

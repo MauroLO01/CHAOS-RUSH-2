@@ -213,7 +213,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.scene?.updateXpBar?.();
 
     if (this.scene?.upgradeSystem?.openUpgradeMenu)
-      this.scene.upgradeSystem.openUpgradeMenu(this);
+      this.scene.upgradeSystem.openUpgradeMenu();
   }
 
   // SISTEMA DE DANO

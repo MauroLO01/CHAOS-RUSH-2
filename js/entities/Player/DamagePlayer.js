@@ -89,14 +89,25 @@ export default class DamagePlayer {
     dealDamageToEnemy(enemy, baseDamage = 1) {
         const info = this.calculateDamage(baseDamage);
 
-        for (let i = 0; i < info.hits; i++) {
-            enemy.takeDamage(info.damage);
+        for ( let i = 0; i < info.hits; i++) {
+            this.player.scene.time.delayedCall(i * 50, () => {
+                enemy.takeDamage(info.damage, {
+                    isCrit: info.isCrit
+                });
 
-            if (enemy.applyKnockback) {
-                enemy.applyKnockback(this.getKnockback(50));
-            }
+                if (enemy.applyKnockback) {
+                    enemy.applyKnockback(this.getKnockback(50));
+                }
+            });
         }
 
+        if (info.isCrit) {
+            this.player.scene.time.timeScale = 0.2;
+
+            this.player.scene.time.delayedCall(50, () => {
+                this.player.scene.time.timeScale = 1;
+            })
+        }
         return info;
     }
 }

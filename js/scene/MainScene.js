@@ -25,9 +25,9 @@ export default class MainScene extends Phaser.Scene {
       { key: "flask", color: 0x00ff00, type: "rect", w: 8, h: 8 }
     ];
 
-    this.load.spritesheet("alquimista", "assets/Sprites/Alquimista.png", {
-      frameWidth: 256,
-      frameHeight: 256
+    this.load.spritesheet("alquimista", "assets/Sprites/Alquimista2.png", {
+      frameWidth: 165,
+      frameHeight: 288
     });
 
     this.load.spritesheet("coveiro", "assets/Sprites/Coveiro.png", {
@@ -509,5 +509,26 @@ export default class MainScene extends Phaser.Scene {
 
     // opcional: screen shake leve
     this.cameras.main.shake(200, 0.005);
+  }
+
+  createFloatingText(x, y, text, color = '#ffffff') {
+    const txt = this.add.text(x, y, text, {
+      fontSize: "18px",
+      color: color,
+      fontStyle: "bold",
+      stroke: "#000",
+      strokeThickness: 4,
+    }).setOrigin(0.5);
+
+    this.tweens.add({
+      targets: txt,
+      y: y - 40,
+      alpha: 0,
+      duration: 800,
+      ease: "Cubic.Out",
+      onComplete: () => {
+        txt.destroy()
+      }
+    });
   }
 }
