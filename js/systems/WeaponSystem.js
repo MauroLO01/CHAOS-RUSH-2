@@ -134,6 +134,20 @@ export default class WeaponSystem {
           finalRadius
         );
 
+        // dentro do collider em _useFrasco, antes de f.destroy()
+        const hit = scene.add.graphics().setDepth(999);
+        hit.fillStyle(0xffffff, 1);
+        hit.fillRect(f.x - 6, f.y - 6, 12, 12);
+        scene.tweens.add({
+          targets: hit,
+          alpha: 0,
+          scaleX: 3, scaleY: 3,
+          duration: 180,
+          ease: 'Stepped',
+          easeParams: [3],
+          onComplete: () => hit.destroy()
+        });
+
         f.destroy();
 
         // remove collider para evitar leak
@@ -142,21 +156,13 @@ export default class WeaponSystem {
     );
   }
 
-  _createGroundEffect(
-    x,
-    y,
-    effect,
-    radius = FRASCO_CONFIG.AREA_RADIUS,
-    options = {}
-  ) {
+  _createGroundEffect(x, y, effect, radius = FRASCO_CONFIG.AREA_RADIUS, options = {}) {
     const scene = this.scene;
 
-    // aceita multiplicadores opcionais
     const lifetime = options.lifetime || null;
     const radiusMul = options.radiusMul || 1;
     const finalRadius = (radius || FRASCO_CONFIG.AREA_RADIUS) * radiusMul;
 
-    // se lifetime não foi definido, usa sistema de ticks normal
     const durationMultiplier = this.player.debuffDurationMultiplier || 1;
     const totalTicks = lifetime
       ? Math.ceil(lifetime / FRASCO_CONFIG.AREA_TICK_RATE)
@@ -164,13 +170,121 @@ export default class WeaponSystem {
 
     const color = getDebuffColor(effect);
 
+    // Círculo de área (mantido)
     const area = scene.add
-      .circle(x, y, finalRadius, color, 0.25)
-      .setStrokeStyle(2, color)
+      .circle(x, y, finalRadius, color, 0.18)
+      .setStrokeStyle(2, color, 0.8)
       .setDepth(4);
 
-    let ticksDone = 0;
+    // Partículas internas por tipo
+    const particleTimers = [];
+    const spawnInterval = scene.time.addEvent({
+      delay: 300,
+      loop: true,
+      callback: () => spawnAreaParticles(x, y, finalRadius, effect),
+    });
+    particleTimers.push(spawnInterval);
 
+    function spawnAreaParticles(cx, cy, r, type) {
+      if (type === 'fire') {
+        // Faíscas laranjas/amarelas que sobem
+        for (let i = 0; i < 4; i++) {
+          const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+          const dist = Phaser.Math.FloatBetween(0, r * 0.8);
+          const px = cx + Math.cos(angle) * dist;
+          const py = cy + Math.sin(angle) * dist;
+          const colors = [0xff2200, 0xff6600, 0xffaa00, 0xffff00];
+          const spark = scene.add
+            .rectangle(px, py, 4, 4, colors[i % colors.length])
+            .setDepth(5);
+
+          scene.tweens.add({
+            targets: spark,
+            y: py - Phaser.Math.Between(12, 28),
+            alpha: 0,
+            scaleX: 0.3, scaleY: 0.3,
+            duration: 350,
+            ease: 'Stepped',
+            easeParams: [3],
+            onComplete: () => spark.destroy(),
+          });
+        }
+      }
+
+      if (type === 'poison') {
+        // Bolhinhas verdes que flutuam
+        for (let i = 0; i < 3; i++) {
+          const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+          const dist = Phaser.Math.FloatBetween(0, r * 0.75);
+          const px = cx + Math.cos(angle) * dist;
+          const py = cy + Math.sin(angle) * dist;
+          const colors = [0x00ff44, 0x44ff88, 0xaaff00];
+          const bubble = scene.add
+            .circle(px, py, Phaser.Math.Between(3, 6), colors[i % colors.length], 0.8)
+            .setDepth(5);
+
+          scene.tweens.add({
+            targets: bubble,
+            y: py - Phaser.Math.Between(8, 22),
+            alpha: 0,
+            scale: 0.2,
+            duration: 600,
+            ease: 'Sine.Out',
+            onComplete: () => bubble.destroy(),
+          });
+        }
+      }
+
+      if (type === 'slow') {
+        // Flocos de gelo — retângulos finos que giram e caem
+        for (let i = 0; i < 3; i++) {
+          const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+          const dist = Phaser.Math.FloatBetween(0, r * 0.8);
+          const px = cx + Math.cos(angle) * dist;
+          const py = cy + Math.sin(angle) * dist;
+          const colors = [0xaaeeff, 0x66ccff, 0xffffff];
+
+          // cada floco é feito de 2 retângulos cruzados
+          const w = (i % 2 === 0) ? 2 : 6;
+          const h = (i % 2 === 0) ? 6 : 2;
+          const flake = scene.add
+            .rectangle(px, py, w, h, colors[i % colors.length])
+            .setDepth(5)
+            .setAngle(Phaser.Math.Between(0, 90));
+
+          scene.tweens.add({
+            targets: flake,
+            y: py + Phaser.Math.Between(6, 18), // cai levemente
+            angle: flake.angle + Phaser.Math.Between(30, 90),
+            alpha: 0,
+            duration: 700,
+            ease: 'Stepped',
+            easeParams: [4],
+            onComplete: () => flake.destroy(),
+          });
+        }
+      }
+    }
+
+    // Pulso periódico na borda do círculo
+    const pulseTimer = scene.time.addEvent({
+      delay: 600,
+      loop: true,
+      callback: () => {
+        if (!area.active) return;
+        scene.tweens.add({
+          targets: area,
+          scaleX: 1.06, scaleY: 1.06,
+          duration: 150,
+          yoyo: true,
+          ease: 'Stepped',
+          easeParams: [2],
+        });
+      },
+    });
+    particleTimers.push(pulseTimer);
+
+    let ticksDone = 0;
     const timer = scene.time.addEvent({
       delay: FRASCO_CONFIG.AREA_TICK_RATE,
       loop: true,
@@ -179,7 +293,6 @@ export default class WeaponSystem {
 
         scene.enemies.children.iterate((e) => {
           if (!e || !e.active) return;
-
           const distance = Phaser.Math.Distance.Between(e.x, e.y, x, y);
           if (distance <= finalRadius) {
             this._applyFlaskDebuff(e, effect);
@@ -187,7 +300,8 @@ export default class WeaponSystem {
         });
 
         if (ticksDone >= totalTicks) {
-          if (area && area.destroy) area.destroy();
+          area?.destroy();
+          particleTimers.forEach(t => t?.remove(false));
           timer.remove(false);
         }
       },
