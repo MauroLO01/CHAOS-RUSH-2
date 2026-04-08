@@ -4,7 +4,7 @@ import XPOrb from "../entities/XPOrb.js";
 import UpgradeSystem from "../systems/UpgradeSystem.js";
 import ClassSystem from "../systems/ClassSystems.js";
 import PassiveSystem from "../systems/PassiveSystem/PassiveSystem.js";
-import WeaponSystem from "../systems/WeaponSystem.js";
+import WeaponSystem from "../systems/WeaponSystem/WeaponSystem.js";
 import SpawnDirector from "../Director/SpawnDirector.js";
 import { PLAYER_CLASSES } from "../entities/Player/PlayerClass.js";
 import EnemyBullet from "../entities/Enemy/EnemyBullet.js";
