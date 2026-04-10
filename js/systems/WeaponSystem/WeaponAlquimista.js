@@ -65,10 +65,9 @@ export default class WeaponAlquimista {
 
         flask.setAngularVelocity(300);
 
-        // 💣 FUNÇÃO DE EXPLOSÃO (ANTES DO USO!)
+        // FUNÇÃO DE EXPLOSÃO
         const explode = (f) => {
-            if (!f.active || f.exploded) return;
-            f.exploded = true;
+            if (!f.active) return;
 
             this._createGroundEffect(f.x, f.y, f.effect, finalRadius);
 
@@ -86,7 +85,7 @@ export default class WeaponAlquimista {
             scene.physics.world.removeCollider(collider);
         };
 
-        // 💥 COLISÃO
+        //COLISÃO
         const collider = scene.physics.add.collider(
             flask,
             scene.enemies,
@@ -98,7 +97,7 @@ export default class WeaponAlquimista {
 
                 enemy.takeDamage(damage);
 
-                // ✨ CRÍTICO VISUAL
+                // 💥 FX crítico
                 if (isCrit) {
                     const critFx = scene.add.circle(f.x, f.y, 20, 0xffd700, 0.4);
 
@@ -115,7 +114,7 @@ export default class WeaponAlquimista {
             }
         );
 
-        // ⏱️ EXPLODE AUTOMÁTICO (ESSENCIAL)
+        // EXPLODE AUTOMÁTICO (ESSENCIAL)
         scene.time.delayedCall(FRASCO_CONFIG.LIFESPAN, () => {
             explode(flask);
         });
@@ -125,10 +124,9 @@ export default class WeaponAlquimista {
         const scene = this.scene;
         const player = this.player;
 
-        const aoe = player.stats.get("aoe") || 1;
         const intensity = player.stats.get("dotDamageBonus") || 1;
 
-        const durationMultiplier = player.stats.get("debuffDurationMultiplier") || 1;
+        const durationMultiplier = this.player.stats.get("debuffDurationMultiplier") || 1;
         const totalTicks = Math.ceil(FRASCO_CONFIG.BASE_TICKS * durationMultiplier);
 
         const color = getDebuffColor(effect);
@@ -145,7 +143,7 @@ export default class WeaponAlquimista {
             delay: 120,
             loop: true,
             callback: () => {
-                this._spawnParticles(x, y, radius, effect, intensity, aoe);
+                this._spawnParticles(x, y, radius, effect, intensity, 1);
             }
         });
 
@@ -183,6 +181,16 @@ export default class WeaponAlquimista {
 
         if (effect === "slow") {
             enemy.takeDamage(Math.max(1, Math.floor(damage * 0.1)));
+
+            if (!enemy._origSpeed) enemy._origSpeed = enemy.speed;
+            const targetSpeed = Math.max(enemy._origSpeed * 0.4, 30);
+
+            if (enemy.speed > targetSpeed) {
+                enemy.speed = targetSpeed;
+                this.scene.time.delayedCall(FRASCO_CONFIG.AREA_TICK_RATE + 50, () => {
+                    if (enemy.active) enemy.speed = enemy._origSpeed;
+                });
+            }
         }
     }
 

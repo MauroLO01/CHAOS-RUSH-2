@@ -10,7 +10,7 @@ export default class UpgradeSystem {
     }
     this.upgrades = [
 
-      // 💥 DANO
+      // DANO
       {
         id: "damage_up_1",
         name: "Dano +20%",
@@ -29,7 +29,7 @@ export default class UpgradeSystem {
         },
       },
 
-      // ⚡ VELOCIDADE DE ATAQUE
+      // VELOCIDADE DE ATAQUE
       {
         id: "attack_speed",
         name: "Atk Speed +15%",
@@ -47,7 +47,7 @@ export default class UpgradeSystem {
         },
       },
 
-      // ❤️ VIDA
+      // VIDA
       {
         id: "max_hp_1",
         name: "Vida Máxima +20%",
@@ -64,7 +64,7 @@ export default class UpgradeSystem {
         },
       },
 
-      // 💚 REGEN
+      // REGEN
       {
         id: "regen_hp",
         name: "Regeneração",
@@ -87,7 +87,7 @@ export default class UpgradeSystem {
         },
       },
 
-      // 🏃 VELOCIDADE
+      // VELOCIDADE
       {
         id: "move_speed",
         name: "Velocidade +15%",
@@ -97,36 +97,13 @@ export default class UpgradeSystem {
         },
       },
 
-      // 🧲 PICKUP
+      // PICKUP
       {
         id: "pickup_range",
         name: "Pickup +50%",
         desc: "Coleta XP de mais longe.",
         apply: (player) => {
           player.stats.multiply("pickupRadius", 1.5);
-        },
-      },
-
-      // 🎯 CRÍTICO
-      {
-        id: "crit_chance",
-        name: "Crítico +10%",
-        desc: "Chance de crítico.",
-        apply: (player) => {
-
-          if (isCrit) {
-            const circle = this.scene.add.cirle(this.x, this.y, 30, 0xffd700, 0.3);
-
-            this.scene.tweens.add({
-              targets: circle,
-              scale: 2,
-              alpha: 0,
-              duration: 300,
-              onComplete: () => circle.destroy()
-            });
-          }
-          
-          player.stats.addFlat("critChance", 0.1);
         },
       },
 
@@ -158,7 +135,7 @@ export default class UpgradeSystem {
         },
       },
 
-      // 🛡️ DEFESA
+      // DEFESA
       {
         id: "armor",
         name: "Armadura +2",
@@ -189,7 +166,7 @@ export default class UpgradeSystem {
         },
       },
 
-      // 💥 COMBATE
+      // COMBATE
       {
         id: "knockback",
         name: "Knockback +40%",
@@ -217,7 +194,7 @@ export default class UpgradeSystem {
         },
       },
 
-      // ⭐ PROGRESSÃO
+      // PROGRESSÃO
       {
         id: "xp_gain",
         name: "XP +20%",
@@ -227,7 +204,7 @@ export default class UpgradeSystem {
         },
       },
 
-      // 🧛 LIFESTEAL
+      // LIFESTEAL
       {
         id: "lifesteal",
         name: "Lifesteal 3%",
@@ -237,7 +214,7 @@ export default class UpgradeSystem {
         },
       },
 
-      // ⚡ ESPECIAL
+      // ESPECIAL
       {
         id: "double_hit",
         name: "Golpe Duplo",
