@@ -114,7 +114,7 @@ export default class WeaponAlquimista {
             }
         );
 
-        // EXPLODE AUTOMÁTICO (ESSENCIAL)
+        // EXPLODE AUTOMÁTICO 
         scene.time.delayedCall(FRASCO_CONFIG.LIFESPAN, () => {
             explode(flask);
         });

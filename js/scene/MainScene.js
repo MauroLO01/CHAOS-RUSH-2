@@ -11,7 +11,6 @@ import EnemyBullet from "../entities/Enemy/EnemyBullet.js";
 
 export default class MainScene extends Phaser.Scene {
   constructor() {
-    // chave da scene (consistente com o que você usa ao start)
     super({ key: "MainScene" });
   }
 

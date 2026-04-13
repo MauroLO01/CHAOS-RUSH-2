@@ -26,7 +26,8 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.animState = "idle";
     this.lastAnim = "";
-
+    
+    console.log("player recebeu classKey:", classKey)
     this.classKey = classKey;
     this.classConfig = classConfig;
 
@@ -75,6 +76,7 @@ export default class Player extends Phaser.Physics.Arcade.Sprite {
     this.inputLocked = false;
 
     this.createAnimations();
+
   }
 
   // SISTEMA PRINCIPAL

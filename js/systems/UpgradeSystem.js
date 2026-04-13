@@ -7,7 +7,9 @@ export default class UpgradeSystem {
     this.isMenuOpen = false;
     this.menuContainer = null;
 
-    this.class = this.class.key;
+    this.player = this.scene.player;
+
+    console.log("Filtro usando classe:", this.player);
 
     if (!scene) {
       console.error("upgradeSystem iniciado com sucesso!");
@@ -218,7 +220,7 @@ export default class UpgradeSystem {
         },
       },
 
-      // ESPECIAL
+      // double hit
       {
         id: "double_hit",
         name: "Golpe Duplo",
@@ -236,12 +238,10 @@ export default class UpgradeSystem {
         class: "alquimista",
         requiredLevel: 5,
         isEspecial: true,
-        apply: (player) => {
+        apply: (player, upgrade) => {
           player.acquiredUpgrades.add(upgrade.id);
         }
-
       },
-
     ];
   }
 
@@ -332,9 +332,13 @@ export default class UpgradeSystem {
   }
 
   applyUpgrade(upgrade) {
-    const player = this.scene.player; // ✅ PRIMEIRO
+    const player = this.scene.player;
 
     if (!player) return;
+
+    if (!player.acquiredUpgrades) {
+      player.acquiredUpgrades = new Set();
+    }
 
     try {
       upgrade.apply(player);
@@ -345,14 +349,14 @@ export default class UpgradeSystem {
       console.error("Upgrade error:", e);
     }
 
-    // 🔥 sincronização
+    // sincronização
     if (player.stats) {
       player.magnetRadius = (player.stats.get("pickupRadius") || 1) * 100;
       player.speed = player.stats.movementSpeed;
       player.xpGain = player.stats.get("xpGain");
     }
 
-    // ✨ efeito visual (SE você já adicionou)
+    // efeito visual (SE você já adicionou)
     if (this.scene?.createFloatingText) {
       const px = player.x;
       const py = player.y - 50;
@@ -395,15 +399,15 @@ export default class UpgradeSystem {
   getAvaibleUpgrades() {
     const player = this.scene.player;
 
-    const especial = this.upgrades.filter(upg => {
-      if (player.acquiredUpgrades.has(upg.id)) return false;
+    const valid = this.upgrades.filter(upg => {
+      if (player.acquiredUpgrades?.has(upg.id)) return false;
+
+      // filtro por classe
+      if (upg.classKey && upg.classKey !== player.classKey) return false;
+
+      return true;
     });
 
-    if (especial.lenght > 0) {
-      return especial;
-    }
-
-    return Phaser.Utils.Array.Shuffle(this.getAvaibleUpgrades).slice(0, 3);
-
+    return Phaser.Utils.Array.Shuffle(valid).slice(0, 3);
   }
 }

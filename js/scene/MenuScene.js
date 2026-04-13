@@ -28,7 +28,7 @@ export default class MenuScene extends Phaser.Scene {
       300,
       0x000000,
       0.5
-    ).setOrigin(0.5).setStrokeStyle(2 , 0x00ffff);
+    ).setOrigin(0.5).setStrokeStyle(2, 0x00ffff);
 
     const classes = [
       {
@@ -83,28 +83,29 @@ export default class MenuScene extends Phaser.Scene {
       btn.on("pointerover", () => btn.setFillStyle(0x00ffff, 0.3));
       btn.on("pointerout", () => btn.setFillStyle(0x111122, 0.7));
 
-      btn.on("pointerdown", () => {
-        console.log("Classe selecionada:", cls.Key);
-        this.scene.start("MainScene", {
-          selectedClassKey: cls.Key
-        });
 
-        const estreia = this.add.text(btn.x - 295, btnY - 35, cls.estreia, {
-          fontSize: "20px",
-          fill: "#ffff00",
-          fontStyle: "bold"
-        }).setOrigin(0.01);
+      const estreia = this.add.text(btn.x - 295, btnY - 35, cls.estreia, {
+        fontSize: "20px",
+        fill: "#ffff00",
+        fontStyle: "bold"
+      }).setOrigin(0.01);
+
+    btn.on("pointerdown", () => {
+      console.log("Classe selecionada:", cls.Key);
+      this.scene.start("MainScene", {
+        selectedClassKey: cls.Key
       });
-
-      this.add.text(
-        this.scale.width / 2,
-        this.scale.height -515,
-        "Pressione uma classe para começar!!",
-        {
-          fontSize: "22px",
-          fill: "#FFF700",
-        }
-      ).setOrigin(0.5);
     });
-  }
+
+    this.add.text(
+      this.scale.width / 2,
+      this.scale.height - 515,
+      "Pressione uma classe para começar!!",
+      {
+        fontSize: "22px",
+        fill: "#FFF700",
+      }
+    ).setOrigin(0.5);
+  });
+}
 }

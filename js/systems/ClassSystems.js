@@ -25,7 +25,7 @@ export default class ClassSystem {
                 weaponKey: "foiceEnferrujada",
                 passiveKey: "ascensaoCarcara",
                 base: {
-                    speedMultiplier: 0.9, // corrigido – 10% mais lento, não negativo
+                    speedMultiplier: 0.9,
                     damageMultiplier: 1.2,
                     auraRangeBonus: 30
                 }

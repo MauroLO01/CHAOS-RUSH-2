@@ -38,7 +38,6 @@ export default class PassiveSystem {
       return;
     }
 
-    // 🔥 Reseta somente a antiga
     if (this.current && this.modules[this.current]) {
       this.modules[this.current].reset();
     }
