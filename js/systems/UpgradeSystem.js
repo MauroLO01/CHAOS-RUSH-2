@@ -1,9 +1,13 @@
+import MenuScene from "../scene/MenuScene.js";
+
 export default class UpgradeSystem {
   constructor(scene) {
     this.scene = scene;
 
     this.isMenuOpen = false;
     this.menuContainer = null;
+
+    this.class = this.class.key;
 
     if (!scene) {
       console.error("upgradeSystem iniciado com sucesso!");
@@ -116,7 +120,7 @@ export default class UpgradeSystem {
         },
       },
 
-      // 🚀 PROJÉTEIS
+      // PROJÉTEIS
       {
         id: "projectile_speed",
         name: "Projéteis +20%",
@@ -224,6 +228,20 @@ export default class UpgradeSystem {
         },
       },
 
+      {
+        id: "alchemist_explosion_1",
+        name: "Explosão Instável",
+        desc: "Projéteis explodem ao atingir o inimigo, causando dano em área.",
+
+        class: "alquimista",
+        requiredLevel: 5,
+        isEspecial: true,
+        apply: (player) => {
+          player.acquiredUpgrades.add(upgrade.id);
+        }
+
+      },
+
     ];
   }
 
@@ -268,7 +286,7 @@ export default class UpgradeSystem {
 
     this.menuContainer.add(title);
 
-    const options = Phaser.Utils.Array.Shuffle(this.upgrades).slice(0, 3);
+    const options = this.getAvaibleUpgrades();
 
     let startX = cx - 280;
 
@@ -372,5 +390,20 @@ export default class UpgradeSystem {
     if (id.includes("lifesteal")) return "#ff66cc"; // rosa
 
     return "#ffffff";
+  }
+
+  getAvaibleUpgrades() {
+    const player = this.scene.player;
+
+    const especial = this.upgrades.filter(upg => {
+      if (player.acquiredUpgrades.has(upg.id)) return false;
+    });
+
+    if (especial.lenght > 0) {
+      return especial;
+    }
+
+    return Phaser.Utils.Array.Shuffle(this.getAvaibleUpgrades).slice(0, 3);
+
   }
 }

@@ -2,7 +2,8 @@ export default class StatsPlayer {
   constructor(player, baseStats = {}) {
     this.player = player;
 
-    // Base imutável da classe (alquimista, coveiro, etc)
+    this.acquiredUpgrades = new Set();
+
     this.baseStats = {
       maxHP: 100,
       damage: 1,
@@ -35,7 +36,7 @@ export default class StatsPlayer {
       attackSpeed: 1,
       extraProjects: 0,
 
-      ...baseStats // 👈 classe sobrescreve aqui
+      ...baseStats
     };
 
     // Stats atuais (base + modificadores)
@@ -115,7 +116,6 @@ export default class StatsPlayer {
   }
 
   update() {
-    // regen, buffs temporários, DOT, escudos, etc
   }
 
   onPlayerDeath() { }
